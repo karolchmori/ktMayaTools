@@ -10,12 +10,12 @@ def mayaMainWindow():
     mainWindowPTR = omui.MQtUtil.mainWindow()
     return wrapInstance(int(mainWindowPTR), QtWidgets.QWidget)
 
-class kt_textureSwap(QtWidgets.QDialog):
+class kt_textureHelper(QtWidgets.QDialog):
     def __init__(self, parent=mayaMainWindow()):
-        super(kt_textureSwap, self).__init__(parent)
+        super(kt_textureHelper, self).__init__(parent)
 
         self.setWindowTitle("Texture Helper")
-        self.setFixedSize(450, 150)
+        #self.setFixedSize(450, 150)
 
         self.setWindowFlags(self.windowFlags() ^ QtCore.Qt.WindowContextHelpButtonHint) #Remove the ? button
 
@@ -29,6 +29,9 @@ class kt_textureSwap(QtWidgets.QDialog):
         self.createConnections()
 
     def createWidgets(self):
+
+        self.swapGRB = QtWidgets.QGroupBox("Swap")
+
         self.oldShaderCMB = QtWidgets.QComboBox()
         self.oldShaderCMB.addItem('lambert')
         self.oldShaderCMB.addItem('aiStandardSurface')
@@ -42,6 +45,9 @@ class kt_textureSwap(QtWidgets.QDialog):
 
         self.swapBTN = QtWidgets.QPushButton("GO")
         self.swapBTN.setFixedWidth(70)
+
+        self.fuse2dGRB = QtWidgets.QGroupBox("Fuse place2dTexture")
+        self.fuse2dBTN = QtWidgets.QPushButton("GO")
 
     def createLayouts(self):
         
@@ -57,12 +63,20 @@ class kt_textureSwap(QtWidgets.QDialog):
         shaderGridLYT.addWidget(self.newShaderCMB, 1,1)
         shaderGridLYT.addWidget(self.swapBTN, 1,2)
 
-        mainLayout.addLayout(shaderGridLYT)
+        self.swapGRB.setLayout(shaderGridLYT)
+        
+        fuseLYT = QtWidgets.QHBoxLayout(self)
+        fuseLYT.addWidget(self.fuse2dBTN)
 
+        self.fuse2dGRB.setLayout(fuseLYT)
+
+        mainLayout.addWidget(self.swapGRB)
+        mainLayout.addWidget(self.fuse2dGRB)
         self.setLayout(mainLayout)
 
     def createConnections(self):
         self.swapBTN.clicked.connect(self.swapTextures)
+        self.fuse2dBTN.clicked.connect(self.fuse2dTexture)
 
 
     def swapTextures(self):
@@ -81,7 +95,25 @@ class kt_textureSwap(QtWidgets.QDialog):
             for sg in sgs:
                 newShader = mc.shadingNode(newMat, asShader=True, name=mat)
                 mc.connectAttr(newShader + ".outColor", sg + ".surfaceShader", force = True)
-            
+
+    def fuse2dTexture(self):
+
+        # Get all selected file nodes
+        fileNodes = mc.ls(sl=True, type="file")
+
+        # Create or pick one shared place2dTexture node
+        place2d = mc.shadingNode("place2dTexture", asUtility=True)
+
+        for node in fileNodes:
+            mc.defaultNavigation(connectToExisting=True, source=place2d, destination=node)
+
+        # Delete unused place2dTexture nodes
+        for node in mc.ls(type="place2dTexture"):
+            connections = mc.listConnections(node, s=True, d=True)
+            if connections:
+                if len(connections) == 1 and connections[0] == "defaultRenderUtilityList1":
+                    mc.delete(node)
+
 
 if __name__ == "__main__":
     # Create 
@@ -91,5 +123,5 @@ if __name__ == "__main__":
     except:
         pass
 
-    window = kt_textureSwap() 
+    window = kt_textureHelper() 
     window.show()
