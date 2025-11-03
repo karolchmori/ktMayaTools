@@ -270,8 +270,8 @@ class kt_textureHelper(QtWidgets.QDialog):
                                 mc.connectAttr(ao + ".outColor", multiply + ".input2", force=True)
                                 mc.connectAttr(multiply + ".outColor", obj + ".baseColor", force=True)
                         
-                    else:
-                        mc.connectAttr(baseColor + ".outColor", obj + ".baseColor", force=True)
+                        else:
+                            mc.connectAttr(baseColor + ".outColor", obj + ".baseColor", force=True)
                     
                     if metalness:
                         mc.connectAttr(metalness + ".outAlpha", obj + ".metalness", force=True)
@@ -302,7 +302,6 @@ class kt_textureHelper(QtWidgets.QDialog):
                         dispShader = None
 
                         for node in connections:
-                            print(node)
                             if mc.nodeType(node) == "displacementShader":
                                 dispShader = node
                                 break
