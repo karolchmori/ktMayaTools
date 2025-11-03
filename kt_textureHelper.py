@@ -120,7 +120,7 @@ class kt_textureHelper(QtWidgets.QDialog):
         '''
         FUSE PLACE 2D TEXTURE
         '''
-        self.fuse2dGRB = QtWidgets.QGroupBox("Fuse place2dTexture")
+        self.fuse2dGRB = QtWidgets.QGroupBox("Fuse place2dTexture - Select Files")
         self.fuse2dBTN = QtWidgets.QPushButton("GO")
 
         '''
