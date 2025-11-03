@@ -242,9 +242,14 @@ class kt_textureHelper(QtWidgets.QDialog):
             ao = self.tempTexture.ambientOcclusion
             metalness = self.tempTexture.metalness
             specular = self.tempTexture.specularRough
+            normal = self.tempTexture.normal
+            displacement = self.tempTexture.displacement
 
             for obj in selectionObjects:
                 if mc.nodeType(obj) == 'aiStandardSurface':
+                    connections = mc.listConnections(obj, type="shadingEngine")
+                    if connections:
+                        shadingEngine = connections[0]
 
                     if baseColor:
                         if ao:
@@ -273,6 +278,43 @@ class kt_textureHelper(QtWidgets.QDialog):
                     
                     if specular:
                         mc.connectAttr(specular + ".outAlpha", obj + ".specularRoughness", force=True)
+
+                    if normal:
+                        #Check if it has connections as multiply
+                        connections = mc.listConnections(normal)
+                        normalMap = None
+
+                        for node in connections:
+                            if mc.nodeType(node) == "aiNormalMap":
+                                normalMap = node
+                                break
+                            
+                        if normalMap:
+                            mc.connectAttr(normalMap + ".outValue", obj + ".normalCamera", force=True)
+                        else:
+                            normalMap = mc.shadingNode("aiNormalMap", asUtility=True)
+                            mc.connectAttr(normal + ".outColor", normalMap + ".input", force=True)
+                            mc.connectAttr(normalMap + ".outValue", obj + ".normalCamera", force=True)
+                    
+                    if displacement:
+                        #Check if it has connections as multiply
+                        connections = mc.listConnections(displacement)
+                        dispShader = None
+
+                        for node in connections:
+                            print(node)
+                            if mc.nodeType(node) == "displacementShader":
+                                dispShader = node
+                                break
+
+                        if dispShader:
+                            mc.connectAttr(dispShader + ".displacement", shadingEngine + ".displacementShader", force=True)
+                        else:
+                            dispShader = mc.shadingNode("displacementShader", asShader=True)
+                            mc.setAttr("displacementShader1.scale", 0.020)
+                            mc.connectAttr(displacement + ".outAlpha", dispShader + ".displacement", force=True)
+                            mc.connectAttr(dispShader + ".displacement", shadingEngine + ".displacementShader", force=True)
+
 
         #For each attribute in texture connect to each shader
 
