@@ -1,6 +1,7 @@
 import maya.cmds as mc
 import maya.OpenMayaUI as omui
 import os
+import re
 
 from PySide2 import QtCore
 from PySide2 import QtWidgets
@@ -16,7 +17,7 @@ class kt_modelingHelper(QtWidgets.QDialog):
     def __init__(self, parent=mayaMainWindow()):
         super(kt_modelingHelper, self).__init__(parent)
 
-        self.setWindowTitle("Texture Helper")
+        self.setWindowTitle("Modeling Helper")
         #self.setFixedSize(450, 150)
 
         self.setWindowFlags(self.windowFlags() ^ QtCore.Qt.WindowContextHelpButtonHint) #Remove the ? button
@@ -24,7 +25,7 @@ class kt_modelingHelper(QtWidgets.QDialog):
         '''
         VARIABLES
         '''
-        self.objData = {}
+        
 
         self.createWidgets()
         self.createLayouts()
@@ -33,88 +34,259 @@ class kt_modelingHelper(QtWidgets.QDialog):
     def createWidgets(self):
 
         '''
-        SWAP
+        DELIVERY
         '''
 
-        self.swapGRB = QtWidgets.QGroupBox("Swap")
+        self.deliveryGRB = QtWidgets.QGroupBox("Delivery")
+        self.deliveryTypeBG = QtWidgets.QButtonGroup()
+        self.deliveryOneRB = QtWidgets.QRadioButton("One Mesh")
+        self.deliveryMultiRB = QtWidgets.QRadioButton("Multiple Meshes")
+        self.deliveryTypeBG.addButton(self.deliveryOneRB)
+        self.deliveryOneRB.setChecked(True)
+        self.deliveryTypeBG.addButton(self.deliveryMultiRB)
 
-        self.oldShaderCMB = QtWidgets.QComboBox()
-        self.oldShaderCMB.addItem('lambert')
-        self.oldShaderCMB.addItem('aiStandardSurface')
-        self.oldShaderCMB.addItem('Phong')
+        self.pivotCB = QtWidgets.QCheckBox("Pivot Position")
+        self.pivotCB.setChecked(True)
+        self.pivotCMB = QtWidgets.QComboBox()
+        self.pivotCMB.addItem('Center')
+        self.pivotCMB.addItem('Top')
+        self.pivotCMB.addItem('Bottom')
 
-        self.newShaderCMB = QtWidgets.QComboBox()
-        self.newShaderCMB.addItem('lambert')
-        self.newShaderCMB.addItem('aiStandardSurface')
-        self.newShaderCMB.addItem('Phong')
-        self.newShaderCMB.setCurrentIndex(1)
+        self.freezeCB = QtWidgets.QCheckBox("Freeze Transformation")
+        self.freezeCB.setChecked(True)
+        self.historyCB = QtWidgets.QCheckBox("Delete History")
+        self.historyCB.setChecked(True)
+        self.namingCB = QtWidgets.QCheckBox("Naming Convention")
+        self.namingCB.setChecked(True)
+        self.namingCMB = QtWidgets.QComboBox()
+        self.namingCMB.addItem('CAPS')
+        self.namingCMB.addItem('lower')
 
-        self.swapBTN = QtWidgets.QPushButton("GO")
-        self.swapBTN.setFixedWidth(70)
+        self.positionCB = QtWidgets.QCheckBox("Position 0,0,0")
+        self.positionCB.setChecked(True)
+        self.positionCMB = QtWidgets.QComboBox()
+        self.positionCMB.addItem('Center')
+        self.positionCMB.addItem('Over')
+
+        self.offsetCB = QtWidgets.QCheckBox("Offset Group")
+        self.offsetCB.setChecked(True)
+
+        self.deliveryBTN = QtWidgets.QPushButton('GO')
 
         '''
-        FUSE PLACE 2D TEXTURE
+        TRANSFORMATION
         '''
-        self.fuse2dGRB = QtWidgets.QGroupBox("Fuse place2dTexture - Select Files")
-        self.fuse2dBTN = QtWidgets.QPushButton("GO")
-
-        '''
-        CONNECT BY FILE NODE NAME
-        '''
-        self.connectNodesGRP = QtWidgets.QGroupBox("Connect by nodes")
-        self.connectLoadNodesBTN = QtWidgets.QPushButton("Load Nodes")
-        self.connectBTN = QtWidgets.QPushButton("GO")
-        self.connectTBL = QtWidgets.QTableWidget()
-        self.connectTBL.setColumnCount(2)
-        self.connectTBL.setHorizontalHeaderLabels(["Attribute", "Value"])
-        self.connectTBL.horizontalHeader().setStretchLastSection(True)
-        self.connectTBL.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
-        self.connectTBL.verticalHeader().setVisible(False)
+        self.transformationGRB = QtWidgets.QGroupBox("Trasformation")
 
     def createLayouts(self):
         
         mainLayout = QtWidgets.QVBoxLayout(self)
     
         """ SWAP LAYOUT """
-        shaderGridLYT = QtWidgets.QGridLayout(self)
-        shaderGridLYT.setAlignment(QtCore.Qt.AlignCenter)
-        shaderGridLYT.addWidget(QtWidgets.QLabel('Old'), 0,0, alignment=QtCore.Qt.AlignCenter)
-        shaderGridLYT.addWidget(QtWidgets.QLabel('New'), 0,1, alignment=QtCore.Qt.AlignCenter)
+        deliveryLYT = QtWidgets.QGridLayout()
+        #deliveryLYT.setAlignment(QtCore.Qt.AlignCenter)
+        deliveryLYT.addWidget(QtWidgets.QLabel('File Type: '), 0,0)
+        deliveryLYT.addWidget(self.deliveryOneRB, 0,1)
+        deliveryLYT.addWidget(self.deliveryMultiRB, 0,2)
+        deliveryLYT.addWidget(self.pivotCB, 1,0)
+        deliveryLYT.addWidget(self.pivotCMB, 1,1)
+        deliveryLYT.addWidget(self.freezeCB, 2,0)
+        deliveryLYT.addWidget(self.historyCB, 3,0)
+        deliveryLYT.addWidget(self.namingCB, 4,0)
+        deliveryLYT.addWidget(self.namingCMB, 4,1)
+        deliveryLYT.addWidget(self.positionCB, 5,0)
+        deliveryLYT.addWidget(self.positionCMB, 5,1)
+        deliveryLYT.addWidget(self.offsetCB, 6,0)
+        deliveryLYT.addWidget(self.deliveryBTN, 7,0)
 
-        shaderGridLYT.addWidget(self.oldShaderCMB, 1,0)
-        shaderGridLYT.addWidget(self.newShaderCMB, 1,1)
-        shaderGridLYT.addWidget(self.swapBTN, 1,2)
-
-        self.swapGRB.setLayout(shaderGridLYT)
+        self.deliveryGRB.setLayout(deliveryLYT)
         
-        """ FUSE LAYOUT """
-        fuseLYT = QtWidgets.QHBoxLayout(self)
-        fuseLYT.addWidget(self.fuse2dBTN)
-
-        self.fuse2dGRB.setLayout(fuseLYT)
-
-        """ CONNECT BY NODES LAYOUT """
-        connectNNLYT = QtWidgets.QVBoxLayout(self)
-        connectButtonsLYT = QtWidgets.QHBoxLayout(self)
-        connectButtonsLYT.addWidget(self.connectLoadNodesBTN)
-        connectButtonsLYT.addWidget(self.connectBTN)
-
-        connectNNLYT.addLayout(connectButtonsLYT)
-        connectNNLYT.addWidget(self.connectTBL)
-
-        self.connectNodesGRP.setLayout(connectNNLYT)
-
-
         """ MAIN LAYOUT """
-        mainLayout.addWidget(self.swapGRB)
-        mainLayout.addWidget(self.fuse2dGRB)
-        mainLayout.addWidget(self.connectNodesGRP)
+        mainLayout.addWidget(self.deliveryGRB)
+        mainLayout.addWidget(self.transformationGRB)
         self.setLayout(mainLayout)
 
     def createConnections(self):
-        pass
+        self.deliveryBTN.clicked.connect(self.onClick_deliveryBTN)
+
+    def onClick_deliveryBTN(self):
+        selectedObjects = mc.ls(selection=True)
+        newSelectedObjects = []
+
+        for obj in selectedObjects:
+
+            children = mc.listRelatives(obj, allDescendents=True, type='transform')
+            family =  [obj] + (children or []) 
+            family.reverse()
+
+            for member in family:
+
+                if self.pivotCB:
+                    self.setPivotPosition(member, self.pivotCMB.currentIndex())
+                    
+                if self.freezeCB:
+                    mc.makeIdentity(member, apply=True, translate=True, rotate=True, scale=True, normal=False)
+                
+                if self.historyCB:
+                    mc.delete(member, constructionHistory=True)
+
+                if self.namingCB:
+                    newName = self.checkNaming(member, self.namingCMB.currentIndex())
+                    if newName != member:
+                        mc.rename(member,newName) 
 
 
+            if self.positionCB:
+                obj = self.checkNaming(obj, self.namingCMB.currentIndex())
+                self.transformationZero(obj, self.positionCMB.currentIndex())
+
+            if self.offsetCB:
+                pass
+            
+            newSelectedObjects.append(obj)
+
+        mc.select(newSelectedObjects)
+
+
+#region Transformation
+
+    def transformationZero(self, obj, index):
+        # Create a locator
+        loc = mc.spaceLocator(name=obj + '_tempLoc')[0]
+
+        if index == 0: 
+            pivotY = 'neutral'
+        else:
+            pivotY = 'negative'
+        
+        pivotPos = self.getPivotPos(obj, 'neutral', pivotY,'neutral')
+        # Move the locator to the pivot position
+        mc.xform(loc, worldSpace=True, translation=pivotPos)
+        
+        # Parent the object to the locator
+        mc.parent(obj, loc)
+        
+        # Move the locator to world origin (0,0,0)
+        mc.xform(loc, worldSpace=True, translation=(0, 0, 0))
+        
+        # Unparent the object (keeping world transform)
+        mc.parent(obj, world=True)
+        
+        # Delete the locator
+        mc.delete(loc)
+
+        mc.makeIdentity(obj, apply=True, translate=True, rotate=True, scale=True, normal=False)
+        mc.delete(obj, constructionHistory=True)
+
+#endregion
+
+#region Naming Convention
+
+    def checkNaming(self, obj, index):
+        validSuffixes = ['GEO', 'GRP', 'OFFSET']
+        addSuffix = False
+
+        # Get the parts
+        parts = obj.split('_')
+        suffix = ''
+        baseName = ''
+
+        # Step 1: Extract suffix if possible
+        if len(parts) > 1:
+            suffix = parts[-1]
+        
+        # Step 2: Build baseName according to number of parts
+        if len(parts) >= 3:
+            baseName = '_'.join(parts[:2])  # first two parts only
+        elif len(parts) == 2:
+            baseName = parts[0]  # maybe missing suffix
+        else:
+            baseName = obj  # just one part
+
+
+        # Step 3: Check suffix validity
+        if suffix not in validSuffixes:
+            suffix = self.getSuffix(obj)  # returns proper suffix with underscore
+        else:
+            # Suffix is valid, so keep it as is
+            suffix = '_' + suffix
+        
+        # Apply casing
+        if index == 0:
+            baseName = baseName.upper()
+        elif index == 1:
+            baseName = baseName.lower()
+
+        if addSuffix:
+            suffix = self.getSuffix(obj)
+
+
+        # Recompose the name
+        newName = baseName + suffix
+
+        if newName != obj:
+            return newName
+        else:
+            return obj
+        
+
+    def getSuffix(self, obj):
+        objType = mc.nodeType(obj)
+
+        if objType == 'transform':
+            shapes = mc.listRelatives(obj, shapes=True, fullPath=True) or []
+
+            if any(mc.nodeType(shape) == 'mesh' for shape in shapes): # This is a mesh transform
+                suffix = '_GEO'
+            else: # This is a group transform
+                suffix = '_GRP'
+
+        return suffix    
+            
+
+
+
+#endregion
+
+#region Pivot Position 
+
+    def setPivotPosition(self, obj, index):
+
+        if index == 0: # Center
+            self.movePivot(obj, 'neutral','neutral','neutral')
+        elif index == 1: # Top
+            self.movePivot(obj, 'neutral','positive','neutral')
+        elif index == 2: # Bottom
+            self.movePivot(obj, 'neutral','negative','neutral')
+
+
+    def movePivot(self, obj, choiceX, choiceY, choiceZ):
+        pivotPos = self.getPivotPos(obj, choiceX, choiceY, choiceZ)
+
+        mc.xform(obj, pivots=pivotPos, ws=True)
+
+    def getPivotPos(self, obj, choiceX, choiceY, choiceZ):
+        objBoundaries = mc.exactWorldBoundingBox(obj)
+        # min_x, min_y, min_z, max_x, max_y, max_z = bbox
+
+        valueX = self.getMinMax(objBoundaries[0],objBoundaries[3],choiceX)
+        valueY = self.getMinMax(objBoundaries[1],objBoundaries[4],choiceY)
+        valueZ = self.getMinMax(objBoundaries[2],objBoundaries[5],choiceZ)
+
+        return (valueX, valueY, valueZ)
+
+    def getMinMax(self, minimun,maximun,choice):
+        value = 0
+        if choice == 'negative':
+            value = minimun
+        elif choice == 'neutral':
+            value = (minimun + maximun) / 2
+        elif choice == 'positive':
+            value = maximun
+
+        return value
+
+#endregion
 
 if __name__ == "__main__":
     # Create 
