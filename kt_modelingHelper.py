@@ -111,7 +111,8 @@ class kt_modelingHelper(QtWidgets.QDialog):
 
     def onClick_deliveryBTN(self):
         selectedObjects = mc.ls(selection=True)
-        newSelectedObjects = []
+        newObjects = []
+        
 
         for obj in selectedObjects:
 
@@ -141,11 +142,51 @@ class kt_modelingHelper(QtWidgets.QDialog):
                 self.transformationZero(obj, self.positionCMB.currentIndex())
 
             if self.offsetCB:
-                pass
-            
-            newSelectedObjects.append(obj)
+                parts = obj.split('_')
+                basename = '_'.join(parts[:-1])
 
-        mc.select(newSelectedObjects)
+                offsetGroupName = basename + '_OFFSET'
+
+                # Check if the offset group already exists to avoid naming conflict
+                if not mc.objExists(offsetGroupName):
+                    offsetGroup = mc.group(empty=True, name=offsetGroupName)
+                else:
+                    offsetGroup = offsetGroupName  # just reuse existing one
+
+                descendants = mc.listRelatives(obj, allDescendents=True) or []
+                if offsetGroup not in descendants and obj != offsetGroup:
+                    mc.parent(obj, offsetGroup)
+                
+                newGroupName = basename+'_GRP'
+
+                if not mc.objExists(newGroupName):
+                    newGroup = mc.group(empty=True, name=newGroupName)
+                    mc.parent(offsetGroup, newGroup)
+                else:
+                    newGroup = newGroupName
+
+                newObjects.append(newGroup)
+
+        # IF FileType is ONE MESH
+        if self.deliveryOneRB.isChecked():
+            filename = mc.file(query=True, sceneName=True, shortName=True)
+            basename, ext = os.path.splitext(filename)
+            parts = basename.split('_')
+
+            if len(parts) > 1:
+                basename = '_'.join(parts[:-1]) # Remove last part (e.g., 'v0001')
+
+            if self.namingCMB.currentIndex() == 0:
+                basename = basename.upper()
+            elif self.namingCMB.currentIndex() == 1:
+                basename = basename.lower()
+
+           
+            newGroup = mc.group(empty=True, name=basename+'_GRP')
+            for obj in newObjects:
+                mc.parent(obj, newGroup)
+
+        mc.select(clear=True)
 
 
 #region Transformation
