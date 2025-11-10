@@ -68,15 +68,16 @@ class kt_modelingHelper(QtWidgets.QDialog):
         self.positionCMB.addItem('Center')
         self.positionCMB.addItem('Over')
 
-        self.offsetCB = QtWidgets.QCheckBox("Offset Group")
-        self.offsetCB.setChecked(True)
-
         self.deliveryBTN = QtWidgets.QPushButton('GO')
 
         '''
-        TRANSFORMATION
+        Utils
         '''
-        self.transformationGRB = QtWidgets.QGroupBox("Trasformation")
+        self.utilsGRB = QtWidgets.QGroupBox("Utils")
+        self.offsetCB = QtWidgets.QCheckBox("Offset Group")
+        self.offsetCB.setChecked(True)
+        self.offsetBTN = QtWidgets.QPushButton('GO')
+
 
     def createLayouts(self):
         
@@ -85,29 +86,38 @@ class kt_modelingHelper(QtWidgets.QDialog):
         """ SWAP LAYOUT """
         deliveryLYT = QtWidgets.QGridLayout()
         #deliveryLYT.setAlignment(QtCore.Qt.AlignCenter)
-        deliveryLYT.addWidget(QtWidgets.QLabel('File Type: '), 0,0)
-        deliveryLYT.addWidget(self.deliveryOneRB, 0,1)
-        deliveryLYT.addWidget(self.deliveryMultiRB, 0,2)
-        deliveryLYT.addWidget(self.pivotCB, 1,0)
-        deliveryLYT.addWidget(self.pivotCMB, 1,1)
-        deliveryLYT.addWidget(self.freezeCB, 2,0)
-        deliveryLYT.addWidget(self.historyCB, 3,0)
-        deliveryLYT.addWidget(self.namingCB, 4,0)
-        deliveryLYT.addWidget(self.namingCMB, 4,1)
-        deliveryLYT.addWidget(self.positionCB, 5,0)
-        deliveryLYT.addWidget(self.positionCMB, 5,1)
-        deliveryLYT.addWidget(self.offsetCB, 6,0)
-        deliveryLYT.addWidget(self.deliveryBTN, 7,0)
+        
+        deliveryLYT.addWidget(self.pivotCB, 0,0)
+        deliveryLYT.addWidget(self.pivotCMB, 0,1)
+        deliveryLYT.addWidget(self.freezeCB, 1,0)
+        deliveryLYT.addWidget(self.historyCB, 2,0)
+        deliveryLYT.addWidget(self.namingCB, 3,0)
+        deliveryLYT.addWidget(self.namingCMB, 3,1)
+        deliveryLYT.addWidget(self.positionCB, 4,0)
+        deliveryLYT.addWidget(self.positionCMB, 4,1)
+        
+        deliveryLYT.addWidget(self.deliveryBTN, 5,0)
 
         self.deliveryGRB.setLayout(deliveryLYT)
+
+
+        utilsLYT = QtWidgets.QGridLayout()
+        utilsLYT.addWidget(QtWidgets.QLabel('File Type: '), 0,0)
+        utilsLYT.addWidget(self.deliveryOneRB, 0,1)
+        utilsLYT.addWidget(self.deliveryMultiRB, 0,2)
+        utilsLYT.addWidget(self.offsetCB, 1,0)
+        utilsLYT.addWidget(self.offsetBTN, 1,1)
+
+        self.utilsGRB.setLayout(utilsLYT)
         
         """ MAIN LAYOUT """
         mainLayout.addWidget(self.deliveryGRB)
-        mainLayout.addWidget(self.transformationGRB)
+        mainLayout.addWidget(self.utilsGRB)
         self.setLayout(mainLayout)
 
     def createConnections(self):
         self.deliveryBTN.clicked.connect(self.onClick_deliveryBTN)
+        self.offsetBTN.clicked.connect(self.onClick_offsetBTN)
 
     def onClick_deliveryBTN(self):
         selectedObjects = mc.ls(selection=True)
@@ -134,18 +144,31 @@ class kt_modelingHelper(QtWidgets.QDialog):
                 if self.namingCB:
                     newName = self.checkNaming(member, self.namingCMB.currentIndex())
                     if newName != member:
-                        mc.rename(member,newName) 
-
+                        mc.rename(member,newName)
+                        
+                    if member == obj:
+                        obj = newName
 
             if self.positionCB:
-                obj = self.checkNaming(obj, self.namingCMB.currentIndex())
+                #obj = self.checkNaming(obj, self.namingCMB.currentIndex())
                 self.transformationZero(obj, self.positionCMB.currentIndex())
+        
+
+        mc.select(clear=True)
+
+    def onClick_offsetBTN(self):
+
+        selectedObjects = mc.ls(selection=True)
+        newObjects = []
+        
+
+        for obj in selectedObjects:
 
             if self.offsetCB:
                 parts = obj.split('_')
                 basename = '_'.join(parts[:-1])
 
-                offsetGroupName = basename + '_OFFSET'
+                offsetGroupName = basename + '_OFF'
 
                 # Check if the offset group already exists to avoid naming conflict
                 if not mc.objExists(offsetGroupName):
@@ -187,6 +210,7 @@ class kt_modelingHelper(QtWidgets.QDialog):
                 mc.parent(obj, newGroup)
 
         mc.select(clear=True)
+
 
 
 #region Transformation
