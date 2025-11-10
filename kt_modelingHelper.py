@@ -38,13 +38,7 @@ class kt_modelingHelper(QtWidgets.QDialog):
         '''
 
         self.deliveryGRB = QtWidgets.QGroupBox("Delivery")
-        self.deliveryTypeBG = QtWidgets.QButtonGroup()
-        self.deliveryOneRB = QtWidgets.QRadioButton("One Mesh")
-        self.deliveryMultiRB = QtWidgets.QRadioButton("Multiple Meshes")
-        self.deliveryTypeBG.addButton(self.deliveryOneRB)
-        self.deliveryOneRB.setChecked(True)
-        self.deliveryTypeBG.addButton(self.deliveryMultiRB)
-
+        
         self.pivotCB = QtWidgets.QCheckBox("Pivot Position")
         self.pivotCB.setChecked(True)
         self.pivotCMB = QtWidgets.QComboBox()
@@ -74,6 +68,16 @@ class kt_modelingHelper(QtWidgets.QDialog):
         Utils
         '''
         self.utilsGRB = QtWidgets.QGroupBox("Utils")
+
+        self.deliveryTypeBG = QtWidgets.QButtonGroup()
+        self.deliveryOneRB = QtWidgets.QRadioButton("One Mesh")
+        self.deliveryMultiRB = QtWidgets.QRadioButton("Multiple Meshes")
+        self.deliveryMultiRB.setChecked(True)
+
+        self.deliveryTypeBG.addButton(self.deliveryOneRB)
+        self.deliveryTypeBG.addButton(self.deliveryMultiRB)
+        
+
         self.offsetCB = QtWidgets.QCheckBox("Offset Group")
         self.offsetCB.setChecked(True)
         self.offsetBTN = QtWidgets.QPushButton('GO')
@@ -168,7 +172,9 @@ class kt_modelingHelper(QtWidgets.QDialog):
                 parts = obj.split('_')
                 basename = '_'.join(parts[:-1])
 
-                offsetGroupName = basename + '_OFF'
+                fullName = 'SD_' + basename
+
+                offsetGroupName = fullName + '_OFF'
 
                 # Check if the offset group already exists to avoid naming conflict
                 if not mc.objExists(offsetGroupName):
@@ -180,7 +186,8 @@ class kt_modelingHelper(QtWidgets.QDialog):
                 if offsetGroup not in descendants and obj != offsetGroup:
                     mc.parent(obj, offsetGroup)
                 
-                newGroupName = basename+'_GRP'
+                newGroupName = fullName + '_GRP'
+                print(newGroupName)
 
                 if not mc.objExists(newGroupName):
                     newGroup = mc.group(empty=True, name=newGroupName)
