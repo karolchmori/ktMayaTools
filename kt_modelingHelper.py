@@ -125,8 +125,6 @@ class kt_modelingHelper(QtWidgets.QDialog):
 
     def onClick_deliveryBTN(self):
         selectedObjects = mc.ls(selection=True)
-        newObjects = []
-        
 
         for obj in selectedObjects:
 
@@ -154,7 +152,6 @@ class kt_modelingHelper(QtWidgets.QDialog):
                         obj = newName
 
             if self.positionCB:
-                #obj = self.checkNaming(obj, self.namingCMB.currentIndex())
                 self.transformationZero(obj, self.positionCMB.currentIndex())
         
 
