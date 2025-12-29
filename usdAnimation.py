@@ -1,5 +1,7 @@
 import maya.cmds as mc
 import maya.OpenMayaUI as omui
+import re
+import os
 from PySide6 import QtCore
 from PySide6 import QtWidgets
 from PySide6 import QtGui
@@ -25,6 +27,7 @@ class usdAnimation(QtWidgets.QDialog):
         self.createWidgets()
         self.createLayouts()
         self.createConnections()
+        self.loadUI()
 
     def createWidgets(self):
 
@@ -71,15 +74,13 @@ class usdAnimation(QtWidgets.QDialog):
         self.exportLYT.addWidget(QtWidgets.QLabel('Character'),0,0)
         self.exportLYT.addWidget(QtWidgets.QLabel('Path'),1,0)
         self.exportLYT.addWidget(self.charPathTXT, 1,1)
-        self.exportLYT.addWidget(QtWidgets.QLabel('v'),1,2)
-        self.exportLYT.addWidget(self.charVersionCMB, 1,3)
+        self.exportLYT.addWidget(self.charVersionCMB, 1,2)
         
 
         self.exportLYT.addWidget(QtWidgets.QLabel('Camera'),2,0)
         self.exportLYT.addWidget(QtWidgets.QLabel('Path'),3,0)
         self.exportLYT.addWidget(self.camPathTXT, 3,1)
-        self.exportLYT.addWidget(QtWidgets.QLabel('v'),3,2)
-        self.exportLYT.addWidget(self.camVersionCMB, 3,3)
+        self.exportLYT.addWidget(self.camVersionCMB, 3,2)
         
 
         """ MAIN LAYOUT """
@@ -90,34 +91,97 @@ class usdAnimation(QtWidgets.QDialog):
         
         
     def createConnections(self):
-        pass
+        self.frameMinTXT.editingFinished.connect(self.frameCheck)
+        self.frameMaxTXT.editingFinished.connect(self.frameCheck)
+        self.frameResetBTN.clicked.connect(self.resetFrameRange)
 
     def loadUI(self):
-        pass
         # 1. Detect file Path
-            # 1.1 Fill the path to export Character
-                # 1.1.1 Detect the version. Order descendant
-            # 1.2. Fill the path to export Camera
-                # 1.2.1 Detect the version. Order descendant
+        scenePath = mc.file(q=True, sn=True)
+        scenePath = os.path.normpath(scenePath)
+        sceneDir = os.path.dirname(scenePath)
+        filename = os.path.basename(scenePath)
+
+        # 1.1 Fill the path to export Character
+        charPath = os.path.join(sceneDir, "Export", "USD_ANIM") + os.sep
+        self.charPathTXT.setText(charPath)
+        tempDirs = self.getVersions(charPath) # 1.1.1 Detect the version. Order descendant
+        self.charVersionCMB.addItems(tempDirs)
+        self.charVersionCMB.setCurrentText(tempDirs[0])
+
+        # 1.2. Fill the path to export Camera
+        camPath = os.path.join(sceneDir, "Export", "USD_CAM") + os.sep
+        self.camPathTXT.setText(camPath)
+        tempDirs = self.getVersions(camPath) # 1.2.1 Detect the version. Order descendant
+        self.camVersionCMB.addItems(tempDirs)
+        self.camVersionCMB.setCurrentText(tempDirs[0])
             
         # 2. Detect SEQ and SHOT
+        self.loadShotInfo(filename)
+
         # 3. Detect frame range
+        self.loadFrameRange()
+
 
     def frameCheck(self):
-        pass
-        # 1. After lineEdit, detect the min and max
-        # 2. Min has to be <= than Max, if not write Max
-        # 3. Max has to be >= than Min, if not write Min
-    
-    def loadShotInfo(self):
-        pass
+        # Read values
+        minVal = int(self.frameMinTXT.text())
+        maxVal = int(self.frameMaxTXT.text())
+
+        # Fix invalid ranges
+        if minVal > maxVal:
+            self.frameMinTXT.setText(str(maxVal)) # If Min is greater than Max, set Min = Max
+        elif maxVal < minVal:
+            self.frameMaxTXT.setText(str(minVal)) # If Max is less than Min, set Max = Min
+
+
+    def loadShotInfo(self, name):
+        match = re.search(r"SQ_(\d+)-SH_(\d+)", name)
+
+        if match:
+            sqValue = match.group(1)
+            shValue = match.group(2)
+
+            self.seqTXT.setText(sqValue)
+            self.shotTXT.setText(shValue)
 
     def loadFrameRange(self):
-        pass
+        start = int(mc.playbackOptions(q=True, min=True))
+        end = int(mc.playbackOptions(q=True, max=True))
+
+        self.frameMinTXT.setText(str(start))
+        self.frameMaxTXT.setText(str(end))
 
     def resetFrameRange(self):
         self.loadFrameRange()
     
+    def getVersions(self, path):
+        dirs = [d for d in os.listdir(path) 
+                    if os.path.isdir(os.path.join(path, d)) and d != "master"]
+        
+        dirs.sort(reverse=True)
+
+        lastFolder = int(dirs[0][1:]) if dirs else 0
+        nextFolder = f"v{lastFolder + 1:04d}"
+
+        dirs.sort(reverse=True)
+
+        dirs.append(nextFolder)
+
+        dirs.sort(reverse=True)
+        
+
+        return dirs
+        '''
+        if dirs:
+            dirs.sort()
+            lastFolder = dirs[-1]
+
+            print(lastFolder)
+        else:
+            print("No folder")
+        ''' 
+
 
     def exportUSD(self):
         #help_info = mc.help('mayaUSDExport')
@@ -129,9 +193,7 @@ class usdAnimation(QtWidgets.QDialog):
         mc.mayaUSDExport(
             file=filePath,
             selection=True,
-            # ------------------------
             # --- Include Options ---
-            # ------------------------
             # TODO Include these insputs History, Channels, Expressions, Constrains (Usually not exported to USD)
             shadingMode="none",
 
