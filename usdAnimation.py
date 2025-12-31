@@ -94,6 +94,7 @@ class usdAnimation(QtWidgets.QDialog):
         self.frameMinTXT.editingFinished.connect(self.frameCheck)
         self.frameMaxTXT.editingFinished.connect(self.frameCheck)
         self.frameResetBTN.clicked.connect(self.resetFrameRange)
+        self.exportBTN.clicked.connect(self.exportFiles)
 
     def loadUI(self):
         # 1. Detect file Path
@@ -122,6 +123,27 @@ class usdAnimation(QtWidgets.QDialog):
         # 3. Detect frame range
         self.loadFrameRange()
 
+    def exportFiles(self):
+        # 4. Detect Characters
+        self.exportCharacters()
+
+        # 5. Detect Cameras
+
+
+    def exportCharacters(self):
+        layers = mc.ls(type='displayLayer')
+        filteredLayers = [i for i in layers if 'defaultLayer' not in i]
+
+        for layer in filteredLayers:
+            name = layer
+            if name not in "Aychedral_Rigging:VARYNDOR_MODEL":
+                fileName = f"SQ{self.seqTXT.text()}_SH{self.shotTXT.text()}_{name}.usd";
+                filePath = self.charPathTXT.text() + self.charVersionCMB.currentText() + "\\" + fileName;
+                print(filePath)
+                objects = mc.editDisplayLayerMembers(layer, q=True, fn=True) or []
+                mc.select(objects)
+                #self.exportUSD(filePath,True)
+                mc.select(clear=True)
 
     def frameCheck(self):
         # Read values
@@ -132,8 +154,7 @@ class usdAnimation(QtWidgets.QDialog):
         if minVal > maxVal:
             self.frameMinTXT.setText(str(maxVal)) # If Min is greater than Max, set Min = Max
         elif maxVal < minVal:
-            self.frameMaxTXT.setText(str(minVal)) # If Max is less than Min, set Max = Min
-
+            self.frameMaxTXT.setText(str(minVal)) # If Max is less than Min, set Max = Min        
 
     def loadShotInfo(self, name):
         match = re.search(r"SQ_(\d+)-SH_(\d+)", name)
@@ -165,30 +186,19 @@ class usdAnimation(QtWidgets.QDialog):
         nextFolder = f"v{lastFolder + 1:04d}"
 
         dirs.sort(reverse=True)
-
         dirs.append(nextFolder)
-
         dirs.sort(reverse=True)
-        
 
         return dirs
-        '''
-        if dirs:
-            dirs.sort()
-            lastFolder = dirs[-1]
 
-            print(lastFolder)
+
+
+    def exportUSD(self, filePath, isMesh):
+
+        if isMesh:
+            exclusion = ["Cameras","Lights"]
         else:
-            print("No folder")
-        ''' 
-
-
-    def exportUSD(self):
-        #help_info = mc.help('mayaUSDExport')
-        #print(help_info)
-
-        filePath = "D:/USD_Animation/test/automatic_export_v05.usd"
-
+            exclusion = ["Cameras","Lights", "Meshes"]
 
         mc.mayaUSDExport(
             file=filePath,
@@ -197,39 +207,26 @@ class usdAnimation(QtWidgets.QDialog):
             # TODO Include these insputs History, Channels, Expressions, Constrains (Usually not exported to USD)
             shadingMode="none",
 
-
-            # ------------------------
             # --- Output Options -----
-            # ------------------------
             defaultUSDFormat="usda",
             # TODO: defaultPrim="Aychedral_Rigging_varyndor", 
 
-
-            # ------------------------
             # --- Geometry Options ---
-            # ------------------------
-            # 
             defaultMeshScheme="catmullClark",
             exportColorSets=False,
             exportComponentTags=False,
             exportUVs=True,
             filterTypes="nurbsCurve",
 
-            # ------------------------
             # ------  Materials ------
-            # ------------------------
             exportMaterials=False,
 
-            # ------------------------
             # ------  Animation ------
-            # ------------------------
             #animation=True,
-            frameRange=(1119, 1279), # Start and End frames
+            frameRange=(float(self.frameMinTXT.text()), float(self.frameMaxTXT.text())),
 
-            # ------------------------
             # ------  Advanced ------
-            # ------------------------
-            excludeExportTypes=["Cameras","Lights"], #TODO: "Meshes"
+            excludeExportTypes= exclusion,
             exportVisibility=False,
 
             mergeTransformAndShape=True,
@@ -237,7 +234,6 @@ class usdAnimation(QtWidgets.QDialog):
             stripNamespaces=True
             # TODO: unit=?? unit=mayaPrefs
             # TODO: metersPerUnit
-            
             )
 
 
