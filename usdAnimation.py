@@ -123,6 +123,9 @@ class usdAnimation(QtWidgets.QDialog):
         # 3. Detect frame range
         self.loadFrameRange()
 
+    def resetFrameRange(self):
+        self.loadFrameRange()
+
     def exportFiles(self):
         # 4. Detect Characters
         self.exportCharacters()
@@ -133,17 +136,89 @@ class usdAnimation(QtWidgets.QDialog):
     def exportCharacters(self):
         layers = mc.ls(type='displayLayer')
         filteredLayers = [i for i in layers if 'defaultLayer' not in i]
+        exportedCounts = {}
 
         for layer in filteredLayers:
-            name = layer
-            if name not in "Aychedral_Rigging:VARYNDOR_MODEL":
-                fileName = f"SQ{self.seqTXT.text()}_SH{self.shotTXT.text()}_{name}.usd";
-                filePath = self.charPathTXT.text() + self.charVersionCMB.currentText() + "\\" + fileName;
-                print(filePath)
-                objects = mc.editDisplayLayerMembers(layer, q=True, fn=True) or []
-                mc.select(objects)
-                #self.exportUSD(filePath,True)
-                mc.select(clear=True)
+            name = self.extractName(layer)
+
+            if name not in exportedCounts:
+                exportedCounts[name] = 0
+
+            exportedCounts[name] += 1
+
+            name = f"{name}_{exportedCounts[name]:03d}"
+
+
+            fileName = f"SQ{self.seqTXT.text()}_SH{self.shotTXT.text()}_{name}.usd";
+
+            filePath = self.charPathTXT.text() + self.charVersionCMB.currentText() + "\\" + fileName;
+            
+            objects = mc.editDisplayLayerMembers(layer, q=True, fn=True) or []
+            self.exportUSD(filePath, objects, True)
+
+            
+
+    def extractName(self, name):
+        if ':' in name:
+            name = name.split(':')[1]
+
+        name = name.split('_')[0]
+
+        return name
+
+    
+    def exportUSD(self, filePath, objects, isMesh):
+
+        if isMesh:
+            exclusion = ["Cameras","Lights"]
+        else:
+            exclusion = ["Lights", "Meshes"]
+        
+
+        mc.select(objects)
+        
+        defaultPrim = objects[0].split("|")[1]
+
+
+        mc.mayaUSDExport(
+            file=filePath,
+            selection=True,
+            # --- Include Options ---
+            # TODO Include these insputs History, Channels, Expressions, Constrains (Usually not exported to USD)
+            shadingMode="none",
+
+            # --- Output Options -----
+            defaultUSDFormat="usda",
+            defaultPrim=defaultPrim, 
+
+            # --- Geometry Options ---
+            defaultMeshScheme="catmullClark",
+            exportColorSets=False,
+            exportComponentTags=False,
+            exportUVs=True,
+            filterTypes="nurbsCurve",
+
+            # ------  Materials ------
+            exportMaterials=False,
+
+            # ------  Animation ------
+            #animation=True,
+            frameRange=(float(self.frameMinTXT.text()), float(self.frameMaxTXT.text())),
+
+            # ------  Advanced ------
+            excludeExportTypes= exclusion,
+            exportVisibility=False,
+
+            mergeTransformAndShape=True,
+            includeEmptyTransforms=True,
+            stripNamespaces=True,
+            unit="meters"
+            # TODO: metersPerUnit
+            )
+        
+
+        mc.select(clear=True)
+
 
     def frameCheck(self):
         # Read values
@@ -173,8 +248,6 @@ class usdAnimation(QtWidgets.QDialog):
         self.frameMinTXT.setText(str(start))
         self.frameMaxTXT.setText(str(end))
 
-    def resetFrameRange(self):
-        self.loadFrameRange()
     
     def getVersions(self, path):
         dirs = [d for d in os.listdir(path) 
@@ -192,49 +265,6 @@ class usdAnimation(QtWidgets.QDialog):
         return dirs
 
 
-
-    def exportUSD(self, filePath, isMesh):
-
-        if isMesh:
-            exclusion = ["Cameras","Lights"]
-        else:
-            exclusion = ["Cameras","Lights", "Meshes"]
-
-        mc.mayaUSDExport(
-            file=filePath,
-            selection=True,
-            # --- Include Options ---
-            # TODO Include these insputs History, Channels, Expressions, Constrains (Usually not exported to USD)
-            shadingMode="none",
-
-            # --- Output Options -----
-            defaultUSDFormat="usda",
-            # TODO: defaultPrim="Aychedral_Rigging_varyndor", 
-
-            # --- Geometry Options ---
-            defaultMeshScheme="catmullClark",
-            exportColorSets=False,
-            exportComponentTags=False,
-            exportUVs=True,
-            filterTypes="nurbsCurve",
-
-            # ------  Materials ------
-            exportMaterials=False,
-
-            # ------  Animation ------
-            #animation=True,
-            frameRange=(float(self.frameMinTXT.text()), float(self.frameMaxTXT.text())),
-
-            # ------  Advanced ------
-            excludeExportTypes= exclusion,
-            exportVisibility=False,
-
-            mergeTransformAndShape=True,
-            includeEmptyTransforms=True,
-            stripNamespaces=True
-            # TODO: unit=?? unit=mayaPrefs
-            # TODO: metersPerUnit
-            )
 
 
 
