@@ -139,22 +139,23 @@ class usdAnimation(QtWidgets.QDialog):
         exportedCounts = {}
 
         for layer in filteredLayers:
-            name = self.extractName(layer)
+            if 'MODEL' in layer:
+                name = self.extractName(layer)
 
-            if name not in exportedCounts:
-                exportedCounts[name] = 0
+                if name not in exportedCounts:
+                    exportedCounts[name] = 0
 
-            exportedCounts[name] += 1
+                exportedCounts[name] += 1
 
-            name = f"{name}_{exportedCounts[name]:03d}"
+                name = f"{name}_{exportedCounts[name]:03d}"
 
 
-            fileName = f"SQ{self.seqTXT.text()}_SH{self.shotTXT.text()}_{name}.usd";
+                fileName = f"SQ{self.seqTXT.text()}_SH{self.shotTXT.text()}_{name}.usd";
 
-            filePath = self.charPathTXT.text() + self.charVersionCMB.currentText() + "\\" + fileName;
-            
-            objects = mc.editDisplayLayerMembers(layer, q=True, fn=True) or []
-            self.exportUSD(filePath, objects, True)
+                filePath = self.charPathTXT.text() + self.charVersionCMB.currentText() + "\\" + fileName;
+                
+                objects = mc.editDisplayLayerMembers(layer, q=True, fn=True) or []
+                self.exportUSD(filePath, objects, True)
 
             
 
@@ -184,7 +185,7 @@ class usdAnimation(QtWidgets.QDialog):
             file=filePath,
             selection=True,
             # --- Include Options ---
-            # TODO Include these insputs History, Channels, Expressions, Constrains (Usually not exported to USD)
+            # NOT DO Include these insputs History, Channels, Expressions, Constrains (Usually not exported to USD)
             shadingMode="none",
 
             # --- Output Options -----
@@ -193,9 +194,12 @@ class usdAnimation(QtWidgets.QDialog):
 
             # --- Geometry Options ---
             defaultMeshScheme="catmullClark",
+            exportDisplayColor=False,
             exportColorSets=False,
             exportComponentTags=False,
             exportUVs=True,
+            exportSkels="none",
+            exportBlendShapes=False,
             filterTypes="nurbsCurve",
 
             # ------  Materials ------
@@ -207,12 +211,12 @@ class usdAnimation(QtWidgets.QDialog):
 
             # ------  Advanced ------
             excludeExportTypes= exclusion,
-            exportVisibility=False,
+            exportVisibility=True,
 
             mergeTransformAndShape=True,
             includeEmptyTransforms=True,
             stripNamespaces=True,
-            unit="meters"
+            # unit="meters"
             # TODO: metersPerUnit
             )
         
