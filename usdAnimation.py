@@ -42,10 +42,15 @@ class usdAnimation(QtWidgets.QDialog):
         self.frameResetBTN.setIcon(QtGui.QIcon(":clockwise.png"))
         self.frameResetBTN.setIconSize(QtCore.QSize(20, 20))
 
+        self.charCB = QtWidgets.QCheckBox("Character")
+        self.charCB.setChecked(True)
         self.charPathTXT = QtWidgets.QLineEdit()
         self.charPathTXT.setEnabled(False)
         self.charVersionCMB = QtWidgets.QComboBox()
 
+
+        self.camCB = QtWidgets.QCheckBox("Camera")
+        self.camCB.setChecked(True)
         self.camPathTXT = QtWidgets.QLineEdit()
         self.camPathTXT.setEnabled(False)
         self.camVersionCMB = QtWidgets.QComboBox()
@@ -71,13 +76,13 @@ class usdAnimation(QtWidgets.QDialog):
 
 
         self.exportLYT = QtWidgets.QGridLayout()
-        self.exportLYT.addWidget(QtWidgets.QLabel('Character'),0,0)
+        self.exportLYT.addWidget(self.charCB,0,0)
         self.exportLYT.addWidget(QtWidgets.QLabel('Path'),1,0)
         self.exportLYT.addWidget(self.charPathTXT, 1,1)
         self.exportLYT.addWidget(self.charVersionCMB, 1,2)
         
 
-        self.exportLYT.addWidget(QtWidgets.QLabel('Camera'),2,0)
+        self.exportLYT.addWidget(self.camCB,2,0)
         self.exportLYT.addWidget(QtWidgets.QLabel('Path'),3,0)
         self.exportLYT.addWidget(self.camPathTXT, 3,1)
         self.exportLYT.addWidget(self.camVersionCMB, 3,2)
@@ -98,50 +103,128 @@ class usdAnimation(QtWidgets.QDialog):
 
     def loadUI(self):
         # 1. Detect file Path
-        scenePath = mc.file(q=True, sn=True)
-        scenePath = os.path.normpath(scenePath)
-        sceneDir = os.path.dirname(scenePath)
-        filename = os.path.basename(scenePath)
+        self.scenePath = mc.file(q=True, sn=True)
+        self.scenePath = os.path.normpath(self.scenePath)
+        self.sceneDir = os.path.dirname(self.scenePath)
+        filename = os.path.basename(self.scenePath)
 
-        # 1.1 Fill the path to export Character
-        charPath = os.path.join(sceneDir, "Export", "USD_ANIM") + os.sep
-        self.charPathTXT.setText(charPath)
-        tempDirs = self.getVersions(charPath) # 1.1.1 Detect the version. Order descendant
-        self.charVersionCMB.addItems(tempDirs)
-        self.charVersionCMB.setCurrentText(tempDirs[0])
-
-        # 1.2. Fill the path to export Camera
-        camPath = os.path.join(sceneDir, "Export", "USD_CAM") + os.sep
-        self.camPathTXT.setText(camPath)
-        tempDirs = self.getVersions(camPath) # 1.2.1 Detect the version. Order descendant
-        self.camVersionCMB.addItems(tempDirs)
-        self.camVersionCMB.setCurrentText(tempDirs[0])
+        # 1. Update Version Folfders
+        self.updateVersionFolders()
             
         # 2. Detect SEQ and SHOT
         self.loadShotInfo(filename)
 
         # 3. Detect frame range
         self.loadFrameRange()
+    
+    def updateVersionFolders(self):
+        # 1.1 Fill the path to export Character
+        self.charVersionCMB.clear()
+        charPath = os.path.join(self.sceneDir, "Export", "USD_ANIM") + os.sep
+        self.charPathTXT.setText(charPath)
+        tempDirs = self.getVersions(charPath) # 1.1.1 Detect the version. Order descendant
+        self.charVersionCMB.addItems(tempDirs)
+        self.charVersionCMB.setCurrentText(tempDirs[0])
+
+        # 1.2. Fill the path to export Camera
+        self.camVersionCMB.clear()
+        camPath = os.path.join(self.sceneDir, "Export", "USD_CAM") + os.sep
+        self.camPathTXT.setText(camPath)
+        tempDirs = self.getVersions(camPath) # 1.2.1 Detect the version. Order descendant
+        self.camVersionCMB.addItems(tempDirs)
+        self.camVersionCMB.setCurrentText(tempDirs[0])
+
 
     def resetFrameRange(self):
         self.loadFrameRange()
 
     def exportFiles(self):
+
+        frameRange = (float(self.frameMinTXT.text()), float(self.frameMaxTXT.text()))
+
         # 4. Detect Characters
-        self.exportCharacters()
+        if self.charCB.isChecked():
+            self.exportCharacters(frameRange)
 
         # 5. Detect Cameras
+        if self.camCB.isChecked():
+            self.exportCamera(frameRange)
+
+        # 6. Update the version of the folders
+        self.updateVersionFolders()
+        
+    
+    def exportCamera(self, frameRange):
+        # 1. Duplicate camera SQx_SHx_CAMERA
+        defaultCams = {'persp', 'top', 'front', 'side'}
+
+        cameras = mc.ls(type='camera')
+        transforms = mc.listRelatives(cameras, parent=True)
+
+        userCam = [cam for cam in transforms if cam not in defaultCams][0]
+
+        if userCam:
+            
+            #print(userCam)
+            
+            newCam = mc.duplicate(userCam, rr=True)
+            mc.parent(newCam, world=True)
+
+            group = mc.group(em=True, name='camera')
+            mc.parent(newCam, group)
+
+            newName = f"SQ{self.seqTXT.text()}_SH{self.shotTXT.text()}_CAMERA";
+            newCam = mc.rename(newCam, newName)
 
 
-    def exportCharacters(self):
+            # 2. Create parent constraint (without maintain offset) original, new
+            mc.parentConstraint(userCam, newCam, mo=False)
+
+
+            # 3. Bake the camera with the same frameRange
+            mc.bakeResults(
+                newCam, 
+                simulation=True, 
+                t=(float(self.frameMinTXT.text()), float(self.frameMaxTXT.text())),
+                sampleBy=1, 
+                oversamplingRate=1, 
+                disableImplicitControl=True, 
+                preserveOutsideKeys=True, 
+                sparseAnimCurveBake=False, 
+                removeBakedAttributeFromLayer=False, 
+                removeBakedAnimFromLayer=False, 
+                bakeOnOverrideLayer=False, 
+                minimizeRotation=True, 
+                controlPoints=False, 
+                shape=True
+            )
+
+
+            # 4. Remove old constraint 
+            constraints = mc.listRelatives(newCam, type='parentConstraint')
+
+            if constraints:
+                mc.delete(constraints)
+
+
+            # 5. Export new camera
+            filePath = self.camPathTXT.text() + self.camVersionCMB.currentText() + "\\" + newName + ".usd";
+            self.exportUSD(filePath, group, False, frameRange)
+
+            # 6. Delete camera
+            mc.delete(newCam)
+            mc.delete(group)
+        
+
+    def exportCharacters(self, frameRange):
         layers = mc.ls(type='displayLayer')
         filteredLayers = [i for i in layers if 'defaultLayer' not in i]
         exportedCounts = {}
 
         for layer in filteredLayers:
-            if 'MODEL' in layer:
-                name = self.extractName(layer)
+            name = self.extractName(layer)
 
+            if name:
                 if name not in exportedCounts:
                     exportedCounts[name] = 0
 
@@ -149,37 +232,42 @@ class usdAnimation(QtWidgets.QDialog):
 
                 name = f"{name}_{exportedCounts[name]:03d}"
 
-
                 fileName = f"SQ{self.seqTXT.text()}_SH{self.shotTXT.text()}_{name}.usd";
 
                 filePath = self.charPathTXT.text() + self.charVersionCMB.currentText() + "\\" + fileName;
-                
                 objects = mc.editDisplayLayerMembers(layer, q=True, fn=True) or []
-                self.exportUSD(filePath, objects, True)
+                self.exportUSD(filePath, objects, True, frameRange)
 
             
 
     def extractName(self, name):
         if ':' in name:
             name = name.split(':')[1]
+        
+        parts = name.split('_')
 
-        name = name.split('_')[0]
+        if len(parts) != 2:
+            return None
+        
+        name, tag = parts
+
+
+        if 'MODEL' not in tag.upper():
+            return None
 
         return name
 
     
-    def exportUSD(self, filePath, objects, isMesh):
+    def exportUSD(self, filePath, objects, isMesh, frameRange):
 
         if isMesh:
             exclusion = ["Cameras","Lights"]
+            defaultPrim = objects[0].split("|")[1]
         else:
             exclusion = ["Lights", "Meshes"]
-        
+            defaultPrim = None
 
         mc.select(objects)
-        
-        defaultPrim = objects[0].split("|")[1]
-
 
         mc.mayaUSDExport(
             file=filePath,
@@ -189,9 +277,10 @@ class usdAnimation(QtWidgets.QDialog):
             shadingMode="none",
 
             # --- Output Options -----
-            defaultUSDFormat="usda",
-            defaultPrim=defaultPrim, 
-
+            defaultUSDFormat="usdc", # usdc usda
+            defaultPrim=defaultPrim,
+            #rootPrim = rootPrim,
+            #kind="group",
             # --- Geometry Options ---
             defaultMeshScheme="catmullClark",
             exportDisplayColor=False,
@@ -207,7 +296,7 @@ class usdAnimation(QtWidgets.QDialog):
 
             # ------  Animation ------
             #animation=True,
-            frameRange=(float(self.frameMinTXT.text()), float(self.frameMaxTXT.text())),
+            frameRange=frameRange,
 
             # ------  Advanced ------
             excludeExportTypes= exclusion,
@@ -217,7 +306,8 @@ class usdAnimation(QtWidgets.QDialog):
             includeEmptyTransforms=True,
             stripNamespaces=True,
             # unit="meters"
-            # TODO: metersPerUnit
+            metersPerUnit=1, # TODO quitar?
+            exportDistanceUnit=True # TODO quitar?
             )
         
 
