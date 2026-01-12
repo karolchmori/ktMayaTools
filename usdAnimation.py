@@ -13,7 +13,15 @@ def mayaMainWindow():
     return wrapInstance(int(mainWindowPTR), QtWidgets.QWidget)
 
 class usdAnimation(QtWidgets.QDialog):
+    """Dialog for exporting USD animation data with UI controls and export logic."""
+    
     def __init__(self, parent=mayaMainWindow()):
+        """Initialize USD Animation dialog with UI setup and data loading.
+
+        Args:
+            parent (QWidget, optional): Parent window, defaults to Maya main window.
+        """
+        
         super(usdAnimation, self).__init__(parent)
 
         self.setWindowTitle("USD Animation")
@@ -29,6 +37,7 @@ class usdAnimation(QtWidgets.QDialog):
         
 
     def createWidgets(self):
+        """Initialize UI widgets."""
 
         self.seqTXT = QtWidgets.QLineEdit()
         self.seqTXT.setReadOnly(True)
@@ -67,7 +76,8 @@ class usdAnimation(QtWidgets.QDialog):
 
 
     def createLayouts(self):
-        
+        """Arrange widgets in layouts."""
+
         mainLayout = QtWidgets.QVBoxLayout(self)
     
         """ SWAP LAYOUT """
@@ -105,6 +115,8 @@ class usdAnimation(QtWidgets.QDialog):
         
         
     def createConnections(self):
+        """Connect signals to their slots."""
+
         self.frameMinTXT.editingFinished.connect(self.frameCheck)
         self.frameMaxTXT.editingFinished.connect(self.frameCheck)
         self.frameResetBTN.clicked.connect(self.onClick_frameResetBTN)
@@ -116,6 +128,8 @@ class usdAnimation(QtWidgets.QDialog):
 
 
     def loadUI(self):
+        """Load scene info and initialize UI data."""
+
         # 1. Only works for opened files, Detect file Path
         self.scenePath = mc.file(q=True, sn=True)
         if self.scenePath:
@@ -142,6 +156,8 @@ class usdAnimation(QtWidgets.QDialog):
             QtCore.QTimer.singleShot(0, self.close)
     
     def stateChanged_checkbox(self):
+        """Enable or disable related widgets based on checkbox state."""
+
         check = self.sender()
         status = check.isChecked()
 
@@ -158,6 +174,7 @@ class usdAnimation(QtWidgets.QDialog):
 #region Folders
 
     def onClick_selectDirectory(self):
+        """Handle directory selection and update path fields."""
         button = self.sender()
 
         # 1. Get the user selected folder
@@ -176,6 +193,11 @@ class usdAnimation(QtWidgets.QDialog):
     
 
     def getPath(self):
+        """Open folder dialog and return selected directory path.
+
+        Returns:
+            str or None: Normalized directory path if selected, else None.
+        """
 
         folder = QtWidgets.QFileDialog.getExistingDirectory(self, "Select the \'Export\' directory")
     
@@ -188,6 +210,8 @@ class usdAnimation(QtWidgets.QDialog):
         
 
     def getDefaultPath(self):
+        """Set and create default export paths for character and camera."""
+
         basePath = self.sceneDir
     
         if not basePath.rstrip(os.sep).endswith("Export"):
@@ -203,6 +227,8 @@ class usdAnimation(QtWidgets.QDialog):
 
 
     def updateVersionFolders(self):
+        """Populate version combo boxes based on current export paths."""
+
         charPath = self.charPathTXT.text()
         camPath = self.camPathTXT.text()
 
@@ -220,6 +246,14 @@ class usdAnimation(QtWidgets.QDialog):
 
     
     def getVersions(self, path):
+        """Get existing version folders and the next version for a given path.
+
+        Args:
+            path (str): Directory path to scan for version folders.
+
+        Returns:
+            list of str: Sorted list of version folder names, including the next version.
+        """
         
         if not path or not os.path.exists(path):
             return ["v0001"]
@@ -261,10 +295,13 @@ class usdAnimation(QtWidgets.QDialog):
 
 
     def onClick_frameResetBTN(self):
+        """Reset frame range to scene's timeline settings."""
         self.loadFrameRange()
 
 
     def frameCheck(self):
+        """Validate and correct frame range input fields."""
+
         # 1. Read values
         minVal = int(self.frameMinTXT.text())
         maxVal = int(self.frameMaxTXT.text())
@@ -276,6 +313,8 @@ class usdAnimation(QtWidgets.QDialog):
             self.frameMaxTXT.setText(str(minVal)) # If Max is less than Min, set Max = Min        
 
     def loadFrameRange(self):
+        """Load timeline frame range into input fields."""
+
         start = int(mc.playbackOptions(q=True, min=True))
         end = int(mc.playbackOptions(q=True, max=True))
 
@@ -284,6 +323,12 @@ class usdAnimation(QtWidgets.QDialog):
 
     
     def loadShotInfo(self, name):
+        """Extract and display sequence and shot info from filename.
+
+        Args:
+            name (str): Filename containing sequence and shot data.
+        """
+        
         match = re.search(r"SQ_(\d+)-SH_(\d+)", name)
 
         if match:
@@ -300,7 +345,9 @@ class usdAnimation(QtWidgets.QDialog):
 
 
 #region Export
+
     def onClick_exportBTN(self):
+        """Export character and camera data if enabled and valid."""
 
         frameRange = (float(self.frameMinTXT.text()), float(self.frameMaxTXT.text()))
         seq = self.seqTXT.text()
@@ -338,6 +385,16 @@ class usdAnimation(QtWidgets.QDialog):
                 QtWidgets.QMessageBox.warning(self, "Error", "No character or camera were enabled to export.")
     
     def exportCamera(self, seq, shot, frameRange, path, version):
+        """Bake and export the user camera as USD.
+
+        Args:
+            seq (str): Sequence number.
+            shot (str): Shot number.
+            frameRange (tuple): Start and end frames (float).
+            path (str): Export directory path.
+            version (str): Version folder name.
+        """
+        
         
         defaultCams = {'persp', 'top', 'front', 'side'}
 
@@ -402,7 +459,13 @@ class usdAnimation(QtWidgets.QDialog):
             self.toggleCameraLock(userCam, True)
 
     def toggleCameraLock(self, camera, status):
+        """Lock or unlock transform attributes of the given camera.
 
+        Args:
+            camera (str): Camera name.
+            status (bool): True to lock, False to unlock attributes.
+        """
+        
         attrs = ['translateX', 'translateY', 'translateZ',
                 'rotateX', 'rotateY', 'rotateZ',
                 'scaleX', 'scaleY', 'scaleZ']
@@ -413,7 +476,16 @@ class usdAnimation(QtWidgets.QDialog):
         
 
     def exportCharacters(self, seq, shot, frameRange, path, version):
+        """Export character layers as USD files.
 
+        Args:
+            seq (str): Sequence number.
+            shot (str): Shot number.
+            frameRange (tuple): Start and end frames (float).
+            path (str): Export directory path.
+            version (str): Version folder name.
+        """
+            
         # 1. Select all display layers
         layers = mc.ls(type='displayLayer')
         filteredLayers = [i for i in layers if 'defaultLayer' not in i]
@@ -446,7 +518,15 @@ class usdAnimation(QtWidgets.QDialog):
             
     
     def exportUSD(self, filePath, objects, isMesh, frameRange):
+        """Export given objects to a USD file with specified options.
 
+        Args:
+            filePath (str): Destination file path for USD export.
+            objects (list): List of scene objects to export.
+            isMesh (bool): True if exporting meshes, False for cameras or others.
+            frameRange (tuple): Start and end frames (float).
+        """
+            
         if isMesh:
             exclusion = ["Cameras","Lights"]
             defaultPrim = objects[0].split("|")[1]
@@ -488,6 +568,15 @@ class usdAnimation(QtWidgets.QDialog):
         mc.select(clear=True)
 
     def extractName(self, name):
+        """Extract base name if format matches and tag contains 'MODEL'.
+
+        Args:
+            name (str): Input string to parse.
+
+        Returns:
+            str or None: Extracted base name if valid, else None.
+        """
+            
         if ':' in name:
             name = name.split(':')[1]
         
