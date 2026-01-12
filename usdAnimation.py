@@ -17,10 +17,8 @@ class usdAnimation(QtWidgets.QDialog):
         super(usdAnimation, self).__init__(parent)
 
         self.setWindowTitle("USD Animation")
-        self.setFixedSize(550, 220)
-
-        self.setWindowFlags(self.windowFlags() ^ QtCore.Qt.WindowContextHelpButtonHint) #Remove the ? button
-
+        self.setMinimumSize(650, 220)
+        
         '''
         VARIABLES
         '''
@@ -28,13 +26,14 @@ class usdAnimation(QtWidgets.QDialog):
         self.createLayouts()
         self.createConnections()
         self.loadUI()
+        
 
     def createWidgets(self):
 
         self.seqTXT = QtWidgets.QLineEdit()
-        self.seqTXT.setEnabled(False)
+        self.seqTXT.setReadOnly(True)
         self.shotTXT = QtWidgets.QLineEdit()
-        self.shotTXT.setEnabled(False)
+        self.shotTXT.setReadOnly(True)
         
         self.frameMinTXT = QtWidgets.QLineEdit()
         self.frameMaxTXT = QtWidgets.QLineEdit()
@@ -45,14 +44,22 @@ class usdAnimation(QtWidgets.QDialog):
         self.charCB = QtWidgets.QCheckBox("Character")
         self.charCB.setChecked(True)
         self.charPathTXT = QtWidgets.QLineEdit()
-        self.charPathTXT.setEnabled(False)
+        self.charPathTXT.setReadOnly(True)
+        self.charPathBTN = QtWidgets.QPushButton()
+        self.charPathBTN.setIcon(QtGui.QIcon(":fileOpen.png"))
+        self.charPathBTN.setFixedSize(40, 30)
+        self.charPathBTN.setToolTip("Select Character Export directory")
         self.charVersionCMB = QtWidgets.QComboBox()
 
 
         self.camCB = QtWidgets.QCheckBox("Camera")
         self.camCB.setChecked(True)
         self.camPathTXT = QtWidgets.QLineEdit()
-        self.camPathTXT.setEnabled(False)
+        self.camPathTXT.setReadOnly(True)
+        self.camPathBTN = QtWidgets.QPushButton()
+        self.camPathBTN.setIcon(QtGui.QIcon(":fileOpen.png"))
+        self.camPathBTN.setFixedSize(40, 30)
+        self.camPathBTN.setToolTip("Select Camera Export directory")
         self.camVersionCMB = QtWidgets.QComboBox()
 
         self.exportBTN = QtWidgets.QPushButton("Export")
@@ -76,16 +83,18 @@ class usdAnimation(QtWidgets.QDialog):
 
 
         self.exportLYT = QtWidgets.QGridLayout()
-        self.exportLYT.addWidget(self.charCB,0,0)
+        self.exportLYT.addWidget(self.charCB,0,0,1,2)
         self.exportLYT.addWidget(QtWidgets.QLabel('Path'),1,0)
         self.exportLYT.addWidget(self.charPathTXT, 1,1)
-        self.exportLYT.addWidget(self.charVersionCMB, 1,2)
+        self.exportLYT.addWidget(self.charPathBTN, 1,2)
+        self.exportLYT.addWidget(self.charVersionCMB, 1,3)
         
 
-        self.exportLYT.addWidget(self.camCB,2,0)
+        self.exportLYT.addWidget(self.camCB,2,0,1,2)
         self.exportLYT.addWidget(QtWidgets.QLabel('Path'),3,0)
         self.exportLYT.addWidget(self.camPathTXT, 3,1)
-        self.exportLYT.addWidget(self.camVersionCMB, 3,2)
+        self.exportLYT.addWidget(self.camPathBTN, 3,2)
+        self.exportLYT.addWidget(self.camVersionCMB, 3,3)
         
 
         """ MAIN LAYOUT """
@@ -98,63 +107,237 @@ class usdAnimation(QtWidgets.QDialog):
     def createConnections(self):
         self.frameMinTXT.editingFinished.connect(self.frameCheck)
         self.frameMaxTXT.editingFinished.connect(self.frameCheck)
-        self.frameResetBTN.clicked.connect(self.resetFrameRange)
-        self.exportBTN.clicked.connect(self.exportFiles)
+        self.frameResetBTN.clicked.connect(self.onClick_frameResetBTN)
+        self.exportBTN.clicked.connect(self.onClick_exportBTN)
+        self.charPathBTN.clicked.connect(self.onClick_selectDirectory)
+        self.camPathBTN.clicked.connect(self.onClick_selectDirectory)
+        self.charCB.stateChanged.connect(self.stateChanged_checkbox)
+        self.camCB.stateChanged.connect(self.stateChanged_checkbox)
+
 
     def loadUI(self):
-        # 1. Detect file Path
+        # 1. Only works for opened files, Detect file Path
         self.scenePath = mc.file(q=True, sn=True)
-        self.scenePath = os.path.normpath(self.scenePath)
-        self.sceneDir = os.path.dirname(self.scenePath)
-        filename = os.path.basename(self.scenePath)
+        if self.scenePath:
+            # 1. Access here after having an scenePath
+            self.scenePath = os.path.normpath(self.scenePath)
+            self.sceneDir = os.path.dirname(self.scenePath)
+            self.sceneDir = os.path.abspath(os.path.join(self.sceneDir, "..", "..", "..")) 
 
-        # 1. Update Version Folfders
-        self.updateVersionFolders()
-            
-        # 2. Detect SEQ and SHOT
-        self.loadShotInfo(filename)
+            filename = os.path.basename(self.scenePath)
 
-        # 3. Detect frame range
-        self.loadFrameRange()
+            # 2. Default folder Path
+            self.getDefaultPath()
+
+            # 3. Update Version Folfders
+            self.updateVersionFolders()
+                
+            # 4. Detect SEQ and SHOT
+            self.loadShotInfo(filename)
+
+            # 5. Detect frame range
+            self.loadFrameRange()
+        else:
+            QtWidgets.QMessageBox.warning(self, "Error", "Please open an scene")
+            QtCore.QTimer.singleShot(0, self.close)
     
-    def updateVersionFolders(self):
-        # 1.1 Fill the path to export Character
-        self.charVersionCMB.clear()
-        charPath = os.path.join(self.sceneDir, "Export", "USD_ANIM") + os.sep
+    def stateChanged_checkbox(self):
+        check = self.sender()
+        status = check.isChecked()
+
+        if check == self.charCB:
+            self.charPathBTN.setEnabled(status)
+            self.charPathTXT.setEnabled(status)
+            self.charVersionCMB.setEnabled(status)
+        elif check == self.camCB:
+            self.camPathBTN.setEnabled(status)
+            self.camPathTXT.setEnabled(status)
+            self.camVersionCMB.setEnabled(status)
+        
+
+#region Folders
+
+    def onClick_selectDirectory(self):
+        button = self.sender()
+
+        # 1. Get the user selected folder
+        selectedPath = self.getPath()
+
+        if selectedPath:
+            # 2. Depending on the button save it
+            if button == self.charPathBTN:
+                self.charPathTXT.setText(selectedPath)
+            else:
+                self.camPathTXT.setText(selectedPath)
+            
+            self.updateVersionFolders()
+        else:
+            QtWidgets.QMessageBox.warning(self, "Error", "Directory was not selected.")
+    
+
+    def getPath(self):
+
+        folder = QtWidgets.QFileDialog.getExistingDirectory(self, "Select the \'Export\' directory")
+    
+        if folder:
+            folder = os.path.normpath(folder)
+            if not folder.endswith(os.sep):
+                folder += os.sep
+
+            return folder
+        
+
+    def getDefaultPath(self):
+        basePath = self.sceneDir
+    
+        if not basePath.rstrip(os.sep).endswith("Export"):
+            basePath = os.path.join(basePath, "Export")
+
+        charPath = os.path.join(basePath, "USD_ANIM") + os.sep
+        os.makedirs(charPath, exist_ok=True)
         self.charPathTXT.setText(charPath)
+
+        camPath = os.path.join(basePath, "USD_CAM") + os.sep
+        os.makedirs(camPath, exist_ok=True)
+        self.camPathTXT.setText(camPath)
+
+
+    def updateVersionFolders(self):
+        charPath = self.charPathTXT.text()
+        camPath = self.camPathTXT.text()
+
+        # 1. Fill the path to export Character
+        self.charVersionCMB.clear()
         tempDirs = self.getVersions(charPath) # 1.1.1 Detect the version. Order descendant
         self.charVersionCMB.addItems(tempDirs)
         self.charVersionCMB.setCurrentText(tempDirs[0])
 
-        # 1.2. Fill the path to export Camera
+        # 2. Fill the path to export Camera
         self.camVersionCMB.clear()
-        camPath = os.path.join(self.sceneDir, "Export", "USD_CAM") + os.sep
-        self.camPathTXT.setText(camPath)
         tempDirs = self.getVersions(camPath) # 1.2.1 Detect the version. Order descendant
         self.camVersionCMB.addItems(tempDirs)
         self.camVersionCMB.setCurrentText(tempDirs[0])
 
+    
+    def getVersions(self, path):
+        
+        if not path or not os.path.exists(path):
+            return ["v0001"]
+    
+        # 1. Match all the folders that have the format "v00XX"
+        dirs = []
 
-    def resetFrameRange(self):
+        for d in os.listdir(path):
+            full_path = os.path.join(path, d)
+
+            if not os.path.isdir(full_path):
+                continue
+
+            if re.match(r"^v\d+$", d):
+                dirs.append(d)
+
+
+        dirs.sort(reverse=True)
+
+        # 2. Get the last folder and create a new one
+        if dirs:
+            lastFolder = int(dirs[0][1:])
+        else:
+            lastFolder = 0
+        
+        nextFolder = f"v{lastFolder + 1:04d}"
+
+        # 3. Append it on the list
+        dirs.sort(reverse=True)
+        dirs.append(nextFolder)
+        dirs.sort(reverse=True)
+
+        return dirs
+
+#endregion
+
+
+#region Frame & Shot Info
+
+
+    def onClick_frameResetBTN(self):
         self.loadFrameRange()
 
-    def exportFiles(self):
+
+    def frameCheck(self):
+        # 1. Read values
+        minVal = int(self.frameMinTXT.text())
+        maxVal = int(self.frameMaxTXT.text())
+
+        # 2. Fix invalid ranges
+        if minVal > maxVal:
+            self.frameMinTXT.setText(str(maxVal)) # If Min is greater than Max, set Min = Max
+        elif maxVal < minVal:
+            self.frameMaxTXT.setText(str(minVal)) # If Max is less than Min, set Max = Min        
+
+    def loadFrameRange(self):
+        start = int(mc.playbackOptions(q=True, min=True))
+        end = int(mc.playbackOptions(q=True, max=True))
+
+        self.frameMinTXT.setText(str(start))
+        self.frameMaxTXT.setText(str(end))
+
+    
+    def loadShotInfo(self, name):
+        match = re.search(r"SQ_(\d+)-SH_(\d+)", name)
+
+        if match:
+            sqValue = match.group(1)
+            shValue = match.group(2)
+
+            self.seqTXT.setText(sqValue)
+            self.shotTXT.setText(shValue)
+        else:
+            QtWidgets.QMessageBox.warning(self, "Error", "Sequence and Shot information has not been found.")
+
+
+#endregion
+
+
+#region Export
+    def onClick_exportBTN(self):
 
         frameRange = (float(self.frameMinTXT.text()), float(self.frameMaxTXT.text()))
+        seq = self.seqTXT.text()
+        shot = self.shotTXT.text()
 
-        # 4. Detect Characters
-        if self.charCB.isChecked():
-            self.exportCharacters(frameRange)
+        charPath = self.charPathTXT.text()
+        camPath = self.camPathTXT.text()
+        export = False
 
-        # 5. Detect Cameras
-        if self.camCB.isChecked():
-            self.exportCamera(frameRange)
+        if charPath or camPath:
+            # 4. Detect Characters
+            if self.charCB.isChecked():
+                if charPath:
+                    self.exportCharacters(seq, shot, frameRange, charPath, self.charVersionCMB.currentText())
+                    export = True
+                else:
+                    QtWidgets.QMessageBox.warning(self, "Error", "No character path has been found. Characters can't be exported.")
 
-        # 6. Update the version of the folders
-        self.updateVersionFolders()
-        
+            # 5. Detect Cameras
+            if self.camCB.isChecked():
+                if camPath:
+                    self.exportCamera(seq, shot, frameRange, camPath, self.camVersionCMB.currentText())
+                    export = True
+                else:
+                    QtWidgets.QMessageBox.warning(self, "Error", "No camera path has been found. Camera can't be exported.")
+
+            # 6. Update the version of the folders
+            self.updateVersionFolders()
+
+            
+            # 7. Show a MessageBox to let know it has finished
+            if export:
+                QtWidgets.QMessageBox.information(self, "Success", "Export complete")
+            else:
+                QtWidgets.QMessageBox.warning(self, "Error", "No character or camera were enabled to export.")
     
-    def exportCamera(self, frameRange):
+    def exportCamera(self, seq, shot, frameRange, path, version):
         # 1. Duplicate camera SQx_SHx_CAMERA
         defaultCams = {'persp', 'top', 'front', 'side'}
 
@@ -164,16 +347,14 @@ class usdAnimation(QtWidgets.QDialog):
         userCam = [cam for cam in transforms if cam not in defaultCams][0]
 
         if userCam:
-            
-            #print(userCam)
-            
+
             newCam = mc.duplicate(userCam, rr=True)
             mc.parent(newCam, world=True)
 
             group = mc.group(em=True, name='camera')
             mc.parent(newCam, group)
 
-            newName = f"SQ{self.seqTXT.text()}_SH{self.shotTXT.text()}_CAMERA";
+            newName = f"SQ{seq}_SH{shot}_CAMERA";
             newCam = mc.rename(newCam, newName)
 
 
@@ -208,7 +389,7 @@ class usdAnimation(QtWidgets.QDialog):
 
 
             # 5. Export new camera
-            filePath = self.camPathTXT.text() + self.camVersionCMB.currentText() + "\\" + newName + ".usd";
+            filePath = path + version + "\\" + newName + ".usd";
             self.exportUSD(filePath, group, False, frameRange)
 
             # 6. Delete camera
@@ -216,29 +397,80 @@ class usdAnimation(QtWidgets.QDialog):
             mc.delete(group)
         
 
-    def exportCharacters(self, frameRange):
+    def exportCharacters(self, seq, shot, frameRange, path, version):
+
+        # 1. Select all display layers
         layers = mc.ls(type='displayLayer')
         filteredLayers = [i for i in layers if 'defaultLayer' not in i]
         exportedCounts = {}
 
+        # 2. For each layer get the name
         for layer in filteredLayers:
             name = self.extractName(layer)
 
             if name:
+                # 3. Save the name to exportedCounts so we know we are going to export a new version
                 if name not in exportedCounts:
                     exportedCounts[name] = 0
 
                 exportedCounts[name] += 1
 
+                # 4. Prepare data
                 name = f"{name}_{exportedCounts[name]:03d}"
 
-                fileName = f"SQ{self.seqTXT.text()}_SH{self.shotTXT.text()}_{name}.usd";
+                fileName = f"SQ{seq}_SH{shot}_{name}.usd";
+                filePath = path + version + "\\" + fileName;
 
-                filePath = self.charPathTXT.text() + self.charVersionCMB.currentText() + "\\" + fileName;
                 objects = mc.editDisplayLayerMembers(layer, q=True, fn=True) or []
+
+                # 5. Export USD
                 self.exportUSD(filePath, objects, True, frameRange)
 
+            else:
+                print(f"Skipped {layer}")
             
+    
+    def exportUSD(self, filePath, objects, isMesh, frameRange):
+
+        if isMesh:
+            exclusion = ["Cameras","Lights"]
+            defaultPrim = objects[0].split("|")[1]
+        else:
+            exclusion = ["Lights", "Meshes"]
+            defaultPrim = None
+
+        mc.select(objects)
+
+        mc.mayaUSDExport(
+            file=filePath,
+            selection=True,
+            # NOT DO Include these insputs History, Channels, Expressions, Constrains (Usually not exported to USD)
+            shadingMode="none",
+            defaultUSDFormat="usdc", # usdc usda
+            defaultPrim=defaultPrim,
+            defaultMeshScheme="catmullClark",
+            exportDisplayColor=False,
+            exportColorSets=False,
+            exportComponentTags=False,
+            exportUVs=True,
+            exportSkels="none",
+            exportBlendShapes=False,
+            filterTypes="nurbsCurve",
+            exportMaterials=False,
+            frameRange=frameRange,
+            excludeExportTypes= exclusion,
+            exportVisibility=True,
+
+            mergeTransformAndShape=True,
+            includeEmptyTransforms=True,
+            stripNamespaces=True,
+            # unit="meters"
+            metersPerUnit=1,
+            exportDistanceUnit=True
+            )
+        
+
+        mc.select(clear=True)
 
     def extractName(self, name):
         if ':' in name:
@@ -256,110 +488,8 @@ class usdAnimation(QtWidgets.QDialog):
             return None
 
         return name
-
     
-    def exportUSD(self, filePath, objects, isMesh, frameRange):
-
-        if isMesh:
-            exclusion = ["Cameras","Lights"]
-            defaultPrim = objects[0].split("|")[1]
-        else:
-            exclusion = ["Lights", "Meshes"]
-            defaultPrim = None
-
-        mc.select(objects)
-
-        mc.mayaUSDExport(
-            file=filePath,
-            selection=True,
-            # --- Include Options ---
-            # NOT DO Include these insputs History, Channels, Expressions, Constrains (Usually not exported to USD)
-            shadingMode="none",
-
-            # --- Output Options -----
-            defaultUSDFormat="usdc", # usdc usda
-            defaultPrim=defaultPrim,
-            #rootPrim = rootPrim,
-            #kind="group",
-            # --- Geometry Options ---
-            defaultMeshScheme="catmullClark",
-            exportDisplayColor=False,
-            exportColorSets=False,
-            exportComponentTags=False,
-            exportUVs=True,
-            exportSkels="none",
-            exportBlendShapes=False,
-            filterTypes="nurbsCurve",
-
-            # ------  Materials ------
-            exportMaterials=False,
-
-            # ------  Animation ------
-            #animation=True,
-            frameRange=frameRange,
-
-            # ------  Advanced ------
-            excludeExportTypes= exclusion,
-            exportVisibility=True,
-
-            mergeTransformAndShape=True,
-            includeEmptyTransforms=True,
-            stripNamespaces=True,
-            # unit="meters"
-            metersPerUnit=1, # TODO quitar?
-            exportDistanceUnit=True # TODO quitar?
-            )
-        
-
-        mc.select(clear=True)
-
-
-    def frameCheck(self):
-        # Read values
-        minVal = int(self.frameMinTXT.text())
-        maxVal = int(self.frameMaxTXT.text())
-
-        # Fix invalid ranges
-        if minVal > maxVal:
-            self.frameMinTXT.setText(str(maxVal)) # If Min is greater than Max, set Min = Max
-        elif maxVal < minVal:
-            self.frameMaxTXT.setText(str(minVal)) # If Max is less than Min, set Max = Min        
-
-    def loadShotInfo(self, name):
-        match = re.search(r"SQ_(\d+)-SH_(\d+)", name)
-
-        if match:
-            sqValue = match.group(1)
-            shValue = match.group(2)
-
-            self.seqTXT.setText(sqValue)
-            self.shotTXT.setText(shValue)
-
-    def loadFrameRange(self):
-        start = int(mc.playbackOptions(q=True, min=True))
-        end = int(mc.playbackOptions(q=True, max=True))
-
-        self.frameMinTXT.setText(str(start))
-        self.frameMaxTXT.setText(str(end))
-
-    
-    def getVersions(self, path):
-        dirs = [d for d in os.listdir(path) 
-                    if os.path.isdir(os.path.join(path, d)) and d != "master"]
-        
-        dirs.sort(reverse=True)
-
-        lastFolder = int(dirs[0][1:]) if dirs else 0
-        nextFolder = f"v{lastFolder + 1:04d}"
-
-        dirs.sort(reverse=True)
-        dirs.append(nextFolder)
-        dirs.sort(reverse=True)
-
-        return dirs
-
-
-
+#endregion
 
 
 if __name__ == "__main__":
