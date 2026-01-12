@@ -17,7 +17,7 @@ class usdAnimation(QtWidgets.QDialog):
         super(usdAnimation, self).__init__(parent)
 
         self.setWindowTitle("USD Animation")
-        self.setMinimumSize(650, 220)
+        self.setMinimumSize(750, 220)
         
         '''
         VARIABLES
@@ -338,7 +338,7 @@ class usdAnimation(QtWidgets.QDialog):
                 QtWidgets.QMessageBox.warning(self, "Error", "No character or camera were enabled to export.")
     
     def exportCamera(self, seq, shot, frameRange, path, version):
-        # 1. Duplicate camera SQx_SHx_CAMERA
+        
         defaultCams = {'persp', 'top', 'front', 'side'}
 
         cameras = mc.ls(type='camera')
@@ -347,7 +347,10 @@ class usdAnimation(QtWidgets.QDialog):
         userCam = [cam for cam in transforms if cam not in defaultCams][0]
 
         if userCam:
+            # 1. Unlock original camera parameters
+            self.toggleCameraLock(userCam, False)
 
+            # 2. Duplicate camera SQx_SHx_CAMERA
             newCam = mc.duplicate(userCam, rr=True)
             mc.parent(newCam, world=True)
 
@@ -358,11 +361,11 @@ class usdAnimation(QtWidgets.QDialog):
             newCam = mc.rename(newCam, newName)
 
 
-            # 2. Create parent constraint (without maintain offset) original, new
+            # 3. Create parent constraint (without maintain offset) original, new
             mc.parentConstraint(userCam, newCam, mo=False)
 
 
-            # 3. Bake the camera with the same frameRange
+            # 4. Bake the camera with the same frameRange
             mc.bakeResults(
                 newCam, 
                 simulation=True, 
@@ -380,21 +383,33 @@ class usdAnimation(QtWidgets.QDialog):
                 shape=True
             )
 
-
-            # 4. Remove old constraint 
+            # 5. Remove old constraint 
             constraints = mc.listRelatives(newCam, type='parentConstraint')
 
             if constraints:
                 mc.delete(constraints)
 
 
-            # 5. Export new camera
+            # 6. Export new camera
             filePath = path + version + "\\" + newName + ".usd";
             self.exportUSD(filePath, group, False, frameRange)
 
-            # 6. Delete camera
+            # 7. Delete camera
             mc.delete(newCam)
             mc.delete(group)
+
+            # 8. Unlock camera parameters again
+            self.toggleCameraLock(userCam, True)
+
+    def toggleCameraLock(self, camera, status):
+
+        attrs = ['translateX', 'translateY', 'translateZ',
+                'rotateX', 'rotateY', 'rotateZ',
+                'scaleX', 'scaleY', 'scaleZ']
+        
+        for attr in attrs:
+            mc.setAttr(f"{camera}.{attr}", lock=status)
+
         
 
     def exportCharacters(self, seq, shot, frameRange, path, version):
