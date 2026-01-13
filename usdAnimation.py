@@ -401,13 +401,12 @@ class usdAnimation(QtWidgets.QDialog):
         cameras = mc.ls(type='camera')
         transforms = mc.listRelatives(cameras, parent=True)
 
-        userCam = [cam for cam in transforms if cam not in defaultCams][0]
+        userCams = [cam for cam in transforms if cam not in defaultCams]
 
-        if userCam:
-            # 1. Unlock original camera parameters
-            self.toggleCameraLock(userCam, False)
+        if userCams:
+            userCam = userCams[0]
 
-            # 2. Duplicate camera SQx_SHx_CAMERA
+            # 1. Duplicate camera SQx_SHx_CAMERA
             newCam = mc.duplicate(userCam, rr=True)
             mc.parent(newCam, world=True)
 
@@ -417,10 +416,11 @@ class usdAnimation(QtWidgets.QDialog):
             newName = f"SQ{seq}_SH{shot}_CAMERA";
             newCam = mc.rename(newCam, newName)
 
+            # 2. Unlock new camera parameters
+            self.toggleCameraLock(newCam, False)
 
             # 3. Create parent constraint (without maintain offset) original, new
-            mc.parentConstraint(userCam, newCam, mo=False)
-
+            constraint = mc.parentConstraint(userCam, newCam, mo=False)[0]
 
             # 4. Bake the camera with the same frameRange
             mc.bakeResults(
@@ -441,10 +441,7 @@ class usdAnimation(QtWidgets.QDialog):
             )
 
             # 5. Remove old constraint 
-            constraints = mc.listRelatives(newCam, type='parentConstraint')
-
-            if constraints:
-                mc.delete(constraints)
+            mc.delete(constraint)
 
 
             # 6. Export new camera
@@ -454,9 +451,10 @@ class usdAnimation(QtWidgets.QDialog):
             # 7. Delete camera
             mc.delete(newCam)
             mc.delete(group)
+        
+        else:
+            QtWidgets.QMessageBox.warning(self, "Error", "No camera have been found to export.")
 
-            # 8. Unlock camera parameters again
-            self.toggleCameraLock(userCam, True)
 
     def toggleCameraLock(self, camera, status):
         """Lock or unlock transform attributes of the given camera.
