@@ -142,18 +142,18 @@ class usdAnimation(QtWidgets.QDialog):
             # 1. Access here after having an scenePath
             self.scenePath = os.path.normpath(self.scenePath)
             self.sceneDir = os.path.dirname(self.scenePath)
-            self.sceneDir = os.path.abspath(os.path.join(self.sceneDir, "..", "..", "..")) 
 
+            # 2. Detect SEQ and SHOT
             filename = os.path.basename(self.scenePath)
+            self.loadShotInfo(filename)
+        
 
-            # 2. Default folder Path
+            # 3. Default folder Path
             self.getDefaultPath()
 
-            # 3. Update Version Folfders
+            # 4. Update Version Folfders
             self.updateVersionFolders()
                 
-            # 4. Detect SEQ and SHOT
-            self.loadShotInfo(filename)
 
             # 5. Detect frame range
             self.loadFrameRange()
@@ -219,11 +219,38 @@ class usdAnimation(QtWidgets.QDialog):
     def getDefaultPath(self):
         """Set and create default export paths for character and camera."""
 
-        basePath = self.sceneDir
-    
-        if not basePath.rstrip(os.sep).endswith("Export"):
-            basePath = os.path.join(basePath, "Export")
+        #self.sceneDir = os.path.abspath(os.path.join(self.sceneDir, "..", "..", "..")) 
 
+        tempPath = self.sceneDir
+
+        #print(f"BASE: {tempPath}")
+        
+        pattern = re.compile(
+                    r"""
+                    ^
+                    (?P<base>[A-Z]:\\[^\\]+)            # D:... P:.... 
+                    (?:\\(?P<sequence>SQ_[0-9]{3}))?    # \SQ_001
+                    (?:\\(?P<shot>SH_[0-9]{3}))?        # \SH_010
+                    (?:\\(?P<export>(?i:export)))?      # \Export
+                    (?:\\.*)?                           # anything after is ignored
+                    """,
+                    re.VERBOSE | re.IGNORECASE
+                )
+        
+        match = pattern.match(tempPath)
+
+        #print(match.groupdict())
+
+
+        # Reconstruct path
+        rootPath = match['base']
+        seqPath = match['sequence'] if match['sequence'] else (f'SQ_{self.seqTXT.text()}' if len(self.seqTXT.text()) else '') 
+        shPath = match['shot'] if match['shot'] else (f'SQ_{self.shotTXT.text()}' if len(self.shotTXT.text()) else '')
+        expPath = match['export'] if match['export'] else 'Export'
+
+        basePath = os.path.join(rootPath, seqPath, shPath, expPath)
+        #print (f'NEW BASE: {basePath}')
+    
         charPath = os.path.join(basePath, "USD_ANIM") + os.sep
         os.makedirs(charPath, exist_ok=True)
         self.charPathTXT.setText(charPath)
