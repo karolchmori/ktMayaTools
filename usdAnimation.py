@@ -52,6 +52,9 @@ class usdAnimation(QtWidgets.QDialog):
 
         self.charCB = QtWidgets.QCheckBox("Character")
         self.charCB.setChecked(True)
+        self.charPriorityCMB = QtWidgets.QComboBox()
+        self.charPriorityCMB.addItems(["MODEL","SKINNED"])
+        self.charPriorityCMB.setFixedSize(90, 20)
         self.charPathTXT = QtWidgets.QLineEdit()
         self.charPathTXT.setReadOnly(True)
         self.charPathBTN = QtWidgets.QPushButton()
@@ -94,17 +97,20 @@ class usdAnimation(QtWidgets.QDialog):
 
         self.exportLYT = QtWidgets.QGridLayout()
         self.exportLYT.addWidget(self.charCB,0,0,1,2)
-        self.exportLYT.addWidget(QtWidgets.QLabel('Path'),1,0)
-        self.exportLYT.addWidget(self.charPathTXT, 1,1)
-        self.exportLYT.addWidget(self.charPathBTN, 1,2)
-        self.exportLYT.addWidget(self.charVersionCMB, 1,3)
+        self.exportLYT.addWidget(QtWidgets.QLabel('Tag'),1,0)
+        self.exportLYT.addWidget(self.charPriorityCMB,1,1)
+        
+        self.exportLYT.addWidget(QtWidgets.QLabel('Path'),2,0)
+        self.exportLYT.addWidget(self.charPathTXT, 2,1)
+        self.exportLYT.addWidget(self.charPathBTN, 2,2)
+        self.exportLYT.addWidget(self.charVersionCMB, 2,3)
         
 
-        self.exportLYT.addWidget(self.camCB,2,0,1,2)
-        self.exportLYT.addWidget(QtWidgets.QLabel('Path'),3,0)
-        self.exportLYT.addWidget(self.camPathTXT, 3,1)
-        self.exportLYT.addWidget(self.camPathBTN, 3,2)
-        self.exportLYT.addWidget(self.camVersionCMB, 3,3)
+        self.exportLYT.addWidget(self.camCB,3,0,1,2)
+        self.exportLYT.addWidget(QtWidgets.QLabel('Path'),4,0)
+        self.exportLYT.addWidget(self.camPathTXT, 4,1)
+        self.exportLYT.addWidget(self.camPathBTN, 4,2)
+        self.exportLYT.addWidget(self.camVersionCMB, 4,3)
         
 
         """ MAIN LAYOUT """
@@ -163,6 +169,7 @@ class usdAnimation(QtWidgets.QDialog):
 
         if check == self.charCB:
             self.charPathBTN.setEnabled(status)
+            self.charPriorityCMB.setEnabled(status)
             self.charPathTXT.setEnabled(status)
             self.charVersionCMB.setEnabled(status)
         elif check == self.camCB:
@@ -337,8 +344,8 @@ class usdAnimation(QtWidgets.QDialog):
 
             self.seqTXT.setText(sqValue)
             self.shotTXT.setText(shValue)
-        else:
-            QtWidgets.QMessageBox.warning(self, "Error", "Sequence and Shot information has not been found.")
+        #else:
+            #QtWidgets.QMessageBox.warning(self, "Error", "Sequence and Shot information has not been found.")
 
 
 #endregion
@@ -350,8 +357,15 @@ class usdAnimation(QtWidgets.QDialog):
         """Export character and camera data if enabled and valid."""
 
         frameRange = (float(self.frameMinTXT.text()), float(self.frameMaxTXT.text()))
+        
         seq = self.seqTXT.text()
         shot = self.shotTXT.text()
+
+        if seq and shot:
+            shotInfo = f"SQ{seq}_SH{shot}_"
+        else:
+            shotInfo = ''
+    
 
         charPath = self.charPathTXT.text()
         camPath = self.camPathTXT.text()
@@ -361,7 +375,7 @@ class usdAnimation(QtWidgets.QDialog):
             # 4. Detect Characters
             if self.charCB.isChecked():
                 if charPath:
-                    self.exportCharacters(seq, shot, frameRange, charPath, self.charVersionCMB.currentText())
+                    self.exportCharacters(shotInfo, frameRange, charPath, self.charVersionCMB.currentText(), self.charPriorityCMB.currentText())
                     export = True
                 else:
                     QtWidgets.QMessageBox.warning(self, "Error", "No character path has been found. Characters can't be exported.")
@@ -369,7 +383,7 @@ class usdAnimation(QtWidgets.QDialog):
             # 5. Detect Cameras
             if self.camCB.isChecked():
                 if camPath:
-                    self.exportCamera(seq, shot, frameRange, camPath, self.camVersionCMB.currentText())
+                    self.exportCamera(shotInfo, frameRange, camPath, self.camVersionCMB.currentText())
                     export = True
                 else:
                     QtWidgets.QMessageBox.warning(self, "Error", "No camera path has been found. Camera can't be exported.")
@@ -384,7 +398,7 @@ class usdAnimation(QtWidgets.QDialog):
             else:
                 QtWidgets.QMessageBox.warning(self, "Error", "No character or camera were enabled to export.")
     
-    def exportCamera(self, seq, shot, frameRange, path, version):
+    def exportCamera(self, shotInfo, frameRange, path, version):
         """Bake and export the user camera as USD.
 
         Args:
@@ -395,8 +409,9 @@ class usdAnimation(QtWidgets.QDialog):
             version (str): Version folder name.
         """
         
-        
+
         defaultCams = {'persp', 'top', 'front', 'side'}
+        difference = frameRange[1] - frameRange[0]
 
         cameras = mc.ls(type='camera')
         transforms = mc.listRelatives(cameras, parent=True)
@@ -413,7 +428,12 @@ class usdAnimation(QtWidgets.QDialog):
             group = mc.group(em=True, name='camera')
             mc.parent(newCam, group)
 
-            newName = f"SQ{seq}_SH{shot}_CAMERA";
+            if difference == 0:
+                newName = f"{shotInfo}CAMERA_restPose";
+            else: 
+                newName = f"{shotInfo}CAMERA";
+
+            
             newCam = mc.rename(newCam, newName)
 
             # 2. Unlock new camera parameters
@@ -473,7 +493,7 @@ class usdAnimation(QtWidgets.QDialog):
 
         
 
-    def exportCharacters(self, seq, shot, frameRange, path, version):
+    def exportCharacters(self, shotInfo, frameRange, path, version, priority):
         """Export character layers as USD files.
 
         Args:
@@ -488,10 +508,11 @@ class usdAnimation(QtWidgets.QDialog):
         layers = mc.ls(type='displayLayer')
         filteredLayers = [i for i in layers if 'defaultLayer' not in i]
         exportedCounts = {}
+        difference = frameRange[1] - frameRange[0]
 
         # 2. For each layer get the name
         for layer in filteredLayers:
-            name = self.extractName(layer)
+            name = self.extractName(layer, priority)
 
             if name:
                 # 3. Save the name to exportedCounts so we know we are going to export a new version
@@ -501,18 +522,23 @@ class usdAnimation(QtWidgets.QDialog):
                 exportedCounts[name] += 1
 
                 # 4. Prepare data
-                name = f"{name}_{exportedCounts[name]:03d}"
+                if difference == 0:
+                    name = f"{name}_restPose_{exportedCounts[name]:03d}"
+                else: 
+                    name = f"{name}_{exportedCounts[name]:03d}"
 
-                fileName = f"SQ{seq}_SH{shot}_{name}.usd";
+
+                fileName = f"{shotInfo}{name}.usd";
                 filePath = path + version + "\\" + fileName;
 
                 objects = mc.editDisplayLayerMembers(layer, q=True, fn=True) or []
 
                 # 5. Export USD
                 self.exportUSD(filePath, objects, True, frameRange)
+                #print(f"DEBUG: Exported {layer}")
 
             else:
-                print(f"Skipped {layer}")
+                print(f"DEBUG: Skipped {layer}")
             
     
     def exportUSD(self, filePath, objects, isMesh, frameRange):
@@ -565,7 +591,7 @@ class usdAnimation(QtWidgets.QDialog):
 
         mc.select(clear=True)
 
-    def extractName(self, name):
+    def extractName(self, name, priority):
         """Extract base name if format matches and tag contains 'MODEL'.
 
         Args:
@@ -579,17 +605,24 @@ class usdAnimation(QtWidgets.QDialog):
             name = name.split(':')[1]
         
         parts = name.split('_')
+        name = parts[0]
+        tag = parts[1]
 
-        if len(parts) != 2:
-            return None
+        # CASO SIMULACION
+        notSimulation = ['MAIASAURA', 'AZUREAN']
+
+        if name not in notSimulation:
+            if tag == priority:
+                return name
+            else:
+                return None
         
-        name, tag = parts
+        else:
 
+            if 'MODEL' not in tag.upper():
+                return None
 
-        if 'MODEL' not in tag.upper():
-            return None
-
-        return name
+            return name
     
 #endregion
 
