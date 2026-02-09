@@ -2,6 +2,8 @@ import maya.cmds as mc
 import maya.OpenMayaUI as omui
 import re
 import os
+
+
 from PySide6 import QtCore
 from PySide6 import QtWidgets
 from PySide6 import QtGui
@@ -219,11 +221,7 @@ class usdAnimation(QtWidgets.QDialog):
     def getDefaultPath(self):
         """Set and create default export paths for character and camera."""
 
-        #self.sceneDir = os.path.abspath(os.path.join(self.sceneDir, "..", "..", "..")) 
-
         tempPath = self.sceneDir
-
-        #print(f"BASE: {tempPath}")
         
         pattern = re.compile(
                     r"""
@@ -239,9 +237,6 @@ class usdAnimation(QtWidgets.QDialog):
         
         match = pattern.match(tempPath)
 
-        #print(match.groupdict())
-
-
         # Reconstruct path
         rootPath = match['base']
         seqPath = match['sequence'] if match['sequence'] else (f'SQ_{self.seqTXT.text()}' if len(self.seqTXT.text()) else '') 
@@ -249,7 +244,6 @@ class usdAnimation(QtWidgets.QDialog):
         expPath = match['export'] if match['export'] else 'Export'
 
         basePath = os.path.join(rootPath, seqPath, shPath, expPath)
-        #print (f'NEW BASE: {basePath}')
     
         charPath = os.path.join(basePath, "USD_ANIM") + os.sep
         os.makedirs(charPath, exist_ok=True)
