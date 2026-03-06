@@ -484,6 +484,9 @@ class usdAnimation(QtWidgets.QDialog):
             # 5. Remove old constraint 
             mc.delete(constraint)
 
+            # 5.1. TODO Modify value of Clipping
+            mc.setAttr(newCam + ".farClipPlane", 1e10)
+
 
             # 6. Export new camera
             filePath = path + version + "\\" + newName + ".usd";

@@ -69,7 +69,7 @@ class usdCameraExport(QtWidgets.QDialog):
 
         mainLayout = QtWidgets.QVBoxLayout(self)
     
-        """ SWAP LAYOUT """
+        """SHOT LAYOUT """
         self.shotInfoLYT = QtWidgets.QHBoxLayout(self)
         self.shotInfoLYT.addWidget(QtWidgets.QLabel('Plug-in: '))
         self.shotInfoLYT.addWidget(self.plugTypeCMB)
