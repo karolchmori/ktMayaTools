@@ -252,12 +252,12 @@ class randomizer(QtWidgets.QDialog):
         Save all transformation values, "translate","rotate","scale"
         '''
         self.objData.clear()
-        self.selectedObjects = mc.ls(selection=True, flatten=True)
+        selectedObjects = mc.ls(selection=True, flatten=True)
 
-        if self.selectedObjects:
+        if selectedObjects:
             self.setWidgetsEnabled(True)
 
-            for obj in self.selectedObjects:
+            for obj in selectedObjects:
                 translate = mc.xform(obj, query=True, worldSpace=True, translation=True)
                 rotate = mc.xform(obj, query=True, worldSpace=True, rotation=True)
                 scale = mc.xform(obj, query=True, worldSpace=True, scale=True)
@@ -300,8 +300,9 @@ class randomizer(QtWidgets.QDialog):
         maxVal = float(value)
 
         if self.objData:
-            if self.selectedObjects:
-                for obj in self.selectedObjects:
+            selectedObjects = mc.ls(selection=True, flatten=True)
+            if selectedObjects:
+                for obj in selectedObjects:
                     if obj in self.objData:
                         initialPosition = self.objData[obj][transform]
                         
@@ -315,7 +316,7 @@ class randomizer(QtWidgets.QDialog):
                                              initialPosition[1] + newPosition[1], 
                                              initialPosition[2] + newPosition[2]]
                         
-                        print(f"{obj} transform: {transform}, initial pos: {initialPosition}, resultingPos: {resultingPosition}")
+                        #print(f"{obj} transform: {transform}, initial pos: {initialPosition}, resultingPos: {resultingPosition}")
                         mc.xform(obj, **{transform: resultingPosition})
                     else:
                         om.MGlobal.displayWarning(f"The {obj} wasn't found in the selection. Skipping")
