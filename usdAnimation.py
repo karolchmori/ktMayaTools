@@ -442,6 +442,8 @@ class usdAnimation(QtWidgets.QDialog):
         if userCams:
             userCam = userCams[0]
 
+            print(f"Exporting: {userCam}")
+
             # 1. Duplicate camera SQx_SHx_CAMERA
             newCam = mc.duplicate(userCam, rr=True)
             mc.parent(newCam, world=True)
@@ -589,7 +591,7 @@ class usdAnimation(QtWidgets.QDialog):
             selection=True,
             # NOT DO Include these insputs History, Channels, Expressions, Constrains (Usually not exported to USD)
             shadingMode="none",
-            defaultUSDFormat="usdc", # usdc usda
+            defaultUSDFormat="usda", # usdc usda
             defaultPrim=defaultPrim,
             defaultMeshScheme="catmullClark",
             exportDisplayColor=False,
