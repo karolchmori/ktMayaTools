@@ -76,7 +76,10 @@ class usdAnimation(QtWidgets.QDialog):
         self.camPathBTN.setToolTip("Select Camera Export directory")
         self.camVersionCMB = QtWidgets.QComboBox()
 
+        self.exportTypeCMB = QtWidgets.QComboBox()
+        self.exportTypeCMB.addItems(["usdc","usda"])
         self.exportBTN = QtWidgets.QPushButton("Export")
+        self.exportBTN.setFixedSize(100, 30)
         
 
 
@@ -85,7 +88,7 @@ class usdAnimation(QtWidgets.QDialog):
 
         mainLayout = QtWidgets.QVBoxLayout(self)
     
-        """ SWAP LAYOUT """
+        """ SHOT LAYOUT """
         self.shotInfoLYT = QtWidgets.QHBoxLayout(self)
         self.shotInfoLYT.addWidget(QtWidgets.QLabel('SQ: '))
         self.shotInfoLYT.addWidget(self.seqTXT)
@@ -113,12 +116,29 @@ class usdAnimation(QtWidgets.QDialog):
         self.exportLYT.addWidget(self.camPathTXT, 4,1)
         self.exportLYT.addWidget(self.camPathBTN, 4,2)
         self.exportLYT.addWidget(self.camVersionCMB, 4,3)
+
+        
+        
+
+        """ ACTIONS LAYOUT """
+        self.actionsLYT = QtWidgets.QHBoxLayout()
+        self.actionsLYT.addWidget(QtWidgets.QLabel('File Type: '))
+        self.actionsLYT.addWidget(self.exportTypeCMB)
+        
+        self.actionsLYT.addWidget(self.exportBTN)
+        self.actionsLYT.addStretch()
+        
         
 
         """ MAIN LAYOUT """
         mainLayout.addLayout(self.shotInfoLYT)
         mainLayout.addLayout(self.exportLYT)
-        mainLayout.addWidget(self.exportBTN)
+
+        divider = QtWidgets.QFrame()
+        divider.setFrameShape(QtWidgets.QFrame.HLine) 
+        mainLayout.addWidget(divider)
+
+        mainLayout.addLayout(self.actionsLYT)
         self.setLayout(mainLayout)
         
         
@@ -390,13 +410,14 @@ class usdAnimation(QtWidgets.QDialog):
 
         charPath = self.charPathTXT.text()
         camPath = self.camPathTXT.text()
+        fileType = self.exportTypeCMB.currentText()
         export = False
 
         if charPath or camPath:
             # 4. Detect Characters
             if self.charCB.isChecked():
                 if charPath:
-                    self.exportCharacters(shotInfo, frameRange, charPath, self.charVersionCMB.currentText(), self.charPriorityCMB.currentText())
+                    self.exportCharacters(shotInfo, frameRange, charPath, self.charVersionCMB.currentText(), self.charPriorityCMB.currentText(), fileType)
                     export = True
                 else:
                     QtWidgets.QMessageBox.warning(self, "Error", "No character path has been found. Characters can't be exported.")
@@ -404,7 +425,7 @@ class usdAnimation(QtWidgets.QDialog):
             # 5. Detect Cameras
             if self.camCB.isChecked():
                 if camPath:
-                    self.exportCamera(shotInfo, frameRange, camPath, self.camVersionCMB.currentText())
+                    self.exportCamera(shotInfo, frameRange, camPath, self.camVersionCMB.currentText(), fileType)
                     export = True
                 else:
                     QtWidgets.QMessageBox.warning(self, "Error", "No camera path has been found. Camera can't be exported.")
@@ -419,7 +440,7 @@ class usdAnimation(QtWidgets.QDialog):
             else:
                 QtWidgets.QMessageBox.warning(self, "Error", "No character or camera were enabled to export.")
     
-    def exportCamera(self, shotInfo, frameRange, path, version):
+    def exportCamera(self, shotInfo, frameRange, path, version, fileType):
         """Bake and export the user camera as USD.
 
         Args:
@@ -442,7 +463,7 @@ class usdAnimation(QtWidgets.QDialog):
         if userCams:
             userCam = userCams[0]
 
-            print(f"Exporting: {userCam}")
+            #print(f"Exporting: {userCam}")
 
             # 1. Duplicate camera SQx_SHx_CAMERA
             newCam = mc.duplicate(userCam, rr=True)
@@ -492,7 +513,7 @@ class usdAnimation(QtWidgets.QDialog):
 
             # 6. Export new camera
             filePath = path + version + "\\" + newName + ".usd";
-            self.exportUSD(filePath, group, False, frameRange)
+            self.exportUSD(filePath, group, False, frameRange, fileType)
 
             # 7. Delete camera
             mc.delete(newCam)
@@ -519,7 +540,7 @@ class usdAnimation(QtWidgets.QDialog):
 
         
 
-    def exportCharacters(self, shotInfo, frameRange, path, version, priority):
+    def exportCharacters(self, shotInfo, frameRange, path, version, priority, fileType):
         """Export character layers as USD files.
 
         Args:
@@ -560,14 +581,14 @@ class usdAnimation(QtWidgets.QDialog):
                 objects = mc.editDisplayLayerMembers(layer, q=True, fn=True) or []
 
                 # 5. Export USD
-                self.exportUSD(filePath, objects, True, frameRange)
+                self.exportUSD(filePath, objects, True, frameRange, fileType)
                 #print(f"DEBUG: Exported {layer}")
 
             else:
                 print(f"DEBUG: Skipped {layer}")
             
     
-    def exportUSD(self, filePath, objects, isMesh, frameRange):
+    def exportUSD(self, filePath, objects, isMesh, frameRange, fileType):
         """Export given objects to a USD file with specified options.
 
         Args:
@@ -591,7 +612,7 @@ class usdAnimation(QtWidgets.QDialog):
             selection=True,
             # NOT DO Include these insputs History, Channels, Expressions, Constrains (Usually not exported to USD)
             shadingMode="none",
-            defaultUSDFormat="usda", # usdc usda
+            defaultUSDFormat= fileType, # usdc usda
             defaultPrim=defaultPrim,
             defaultMeshScheme="catmullClark",
             exportDisplayColor=False,
