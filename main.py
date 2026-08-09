@@ -44,9 +44,6 @@ class MainWindow(QtWidgets.QWidget):
 
     def create_widgets(self):
         self.test1SLD = util.kt_widgets.ktRangeSlider()
-        self.test2SLD = util.kt_widgets.ktRangeSlider(showValueField=False)
-        self.test3SLD = util.kt_widgets.ktRangeSlider(showMinMaxField=False)
-        self.test4SLD = util.kt_widgets.ktRangeSlider(showMinMaxField=False, showValueField=False)
 
         self.randomizerBTN = QtWidgets.QPushButton("Randomizer Tool")
         self.popconsBTN = QtWidgets.QPushButton("Pop Constraint Tool")
@@ -56,9 +53,6 @@ class MainWindow(QtWidgets.QWidget):
         mainLayout = QtWidgets.QVBoxLayout(self)
         mainLayout.addWidget(QtWidgets.QLabel("Custom Widgets: "))
         mainLayout.addWidget(self.test1SLD)
-        mainLayout.addWidget(self.test2SLD)
-        mainLayout.addWidget(self.test3SLD)
-        mainLayout.addWidget(self.test4SLD)
 
 
         mainLayout.addWidget(self.randomizerBTN)

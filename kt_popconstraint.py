@@ -5,8 +5,8 @@ import math
 import maya.mel as mel
 import maya.OpenMaya as om
 
-mainHeight = 400
 mainWidth = 450
+mainHeight = 400
 
 global vertexData
 global geoData
@@ -14,8 +14,9 @@ global geoData
 #region Other Func
 
 
-""" ------------------------------------------------------------------------------------------------------------
-    ------------------------------------------------------------------------------------------------------------
+
+def getVertexInformation(geo):
+    """ 
     #Function that checks all the position of the geo vertices and saves it in a list
 
     #Parameters:
@@ -28,8 +29,7 @@ global geoData
                     "index": 50,
                     "position": [5, 6, -1]
                 }
-"""
-def getVertexInformation(geo):
+    """
     #Select vertices of geometry
     mc.select(f"{geo}.vtx[*]")  
     vertices = mc.ls(sl=True, fl=True) 
@@ -50,8 +50,9 @@ def getVertexInformation(geo):
 
     return verticesData
 
-""" ------------------------------------------------------------------------------------------------------------
-    ------------------------------------------------------------------------------------------------------------
+
+def getClosestVertex(verticesData, geo):
+    """ 
     #Function that gets the closest vertex of a geometry checking a given list with vertices position
 
     #Parameters:
@@ -60,8 +61,7 @@ def getVertexInformation(geo):
 
     #Returns:
         closestVertex(int): gets the index of the closest vertex (example: vtx[5] returns 5)
-"""
-def getClosestVertex(verticesData, geo):
+    """
     closestVertex = None
     minDistance = None
 
@@ -91,8 +91,9 @@ def getClosestVertex(verticesData, geo):
 
     return closestVertex
 
-""" ------------------------------------------------------------------------------------------------------------
-    ------------------------------------------------------------------------------------------------------------
+
+def popConstraint(mainGeo, secGeo):
+    """
     #Function applies Poly on Point Constraint between two geometries (the first one is usually a vertex)
     The function is done in MEL because python has some bug where is not maintaining offsets even when applied it.
 
@@ -102,8 +103,7 @@ def getClosestVertex(verticesData, geo):
 
     #Returns:
         None
-"""
-def popConstraint(mainGeo, secGeo):
+    """
     if mc.objExists(mainGeo):
         if mc.objExists(secGeo):
             mc.select(mainGeo, secGeo)
@@ -113,8 +113,9 @@ def popConstraint(mainGeo, secGeo):
     else:
         om.MGlobal.displayWarning(f"{mainGeo} doesn't exist in the scene. Skipping")
 
-""" ------------------------------------------------------------------------------------------------------------
-    ------------------------------------------------------------------------------------------------------------
+
+def listOnTable(table, itemsList):
+    """
     #Function that will fill a table based on the information of a list, this function is not dynamic, is
     specifically done for this exercise thats why we are setting which columns should use.
 
@@ -124,9 +125,7 @@ def popConstraint(mainGeo, secGeo):
 
     #Returns:
         None
-"""
-def listOnTable(table, itemsList):
-    
+    """
     #Restart table
     rows = mc.scriptTable(table, query=True, rows=True)
     for i in range(rows, 0, -1):
@@ -139,8 +138,9 @@ def listOnTable(table, itemsList):
             mc.scriptTable(table, cellIndex=(i, 1), edit=True, cellValue=itemsList[i-1]["name"])
             mc.scriptTable(table, cellIndex=(i, 2), edit=True, cellValue=itemsList[i-1]["closestVertex"])
 
-""" ------------------------------------------------------------------------------------------------------------
-    ------------------------------------------------------------------------------------------------------------
+
+def writeFile(path, data):
+    """ 
     #Function that will write a json file given the path and the data.
 
     #Parameters:
@@ -149,13 +149,13 @@ def listOnTable(table, itemsList):
 
     #Returns:
         None
-"""
-def writeFile(path, data):
+    """
     with open(path, 'w') as file:
         json.dump(data, file, indent=4)
 
-""" ------------------------------------------------------------------------------------------------------------
-    ------------------------------------------------------------------------------------------------------------
+
+def readFile(filename):
+    """
     #Function that will read a json file and extract the data
 
     #Parameters:
@@ -163,8 +163,7 @@ def writeFile(path, data):
         
     #Returns:
         data(list): information extracted from the json
-"""
-def readFile(filename):
+    """
     with open(filename, 'r') as file:
         data = json.load(file)
     return data
@@ -172,8 +171,9 @@ def readFile(filename):
 #endregion
 
 #region Button Func
-""" ------------------------------------------------------------------------------------------------------------
-    ------------------------------------------------------------------------------------------------------------
+
+def onClick_maingeoLoadBTN(txt, button):
+    """
     #Function that will trigger when clicking the button that loads the main object
 
     #Parameters:
@@ -182,8 +182,7 @@ def readFile(filename):
         
     #Returns:
         None
-"""
-def onClick_maingeoLoadBTN(txt, button):
+    """
     global vertexData
 
     selectedObjects = mc.ls(selection=True)
@@ -202,8 +201,9 @@ def onClick_maingeoLoadBTN(txt, button):
 
         mc.select(selectedObject)
 
-""" ------------------------------------------------------------------------------------------------------------
-    ------------------------------------------------------------------------------------------------------------
+
+def onClick_secgeoLoadBTN(table, buttons, txt):
+    """ 
     #Function that will trigger when clicking the button that loads the secondary objects
 
     #Parameters:
@@ -213,8 +213,7 @@ def onClick_maingeoLoadBTN(txt, button):
         
     #Returns:
         None
-"""
-def onClick_secgeoLoadBTN(table, buttons, txt):
+    """
     global geoData
     geoData = []
 
@@ -242,8 +241,9 @@ def onClick_secgeoLoadBTN(table, buttons, txt):
     if geoData:
         listOnTable(table, geoData)
 
-""" ------------------------------------------------------------------------------------------------------------
-    ------------------------------------------------------------------------------------------------------------
+
+def onClick_popconsBTN(table, txt, button):
+    """
     #Function that will trigger when clicking the button that creates the Poly On Point Constraint
 
     #Parameters:
@@ -253,9 +253,7 @@ def onClick_secgeoLoadBTN(table, buttons, txt):
         
     #Returns:
         None
-"""
-def onClick_popconsBTN(table, txt, button):
-
+    """
     #If we have information
     if vertexData and geoData:
         mainGeo = mc.textField(txt, q=True, tx=True)
@@ -282,8 +280,9 @@ def onClick_popconsBTN(table, txt, button):
             om.MGlobal.displayError(f"Unable to parent, the {mainGeo} object doesn't exist on the scene.")
 
 
-""" ------------------------------------------------------------------------------------------------------------
-    ------------------------------------------------------------------------------------------------------------
+
+def onClick_exportBTN():
+    """
     #Function that will export a json file with the information of secondary objects constraint
 
     #Parameters:
@@ -291,8 +290,7 @@ def onClick_popconsBTN(table, txt, button):
         
     #Returns:
         None
-"""
-def onClick_exportBTN():
+    """
     # Define a filename (or use a file dialog to choose one)
     result = mc.fileDialog2(fileMode=0, caption='Export Constraint information', fileFilter='JSON Files (*.json)')
 
@@ -309,8 +307,9 @@ def onClick_exportBTN():
         om.MGlobal.displayError("Permission denied: You don't have the necessary permissions")
 
 
-""" ------------------------------------------------------------------------------------------------------------
-    ------------------------------------------------------------------------------------------------------------
+
+def onClick_importBTN(table, txt, button):
+    """ 
     #Function that will import a json file with the information of secondary objects constraint and will apply it
 
     #Parameters:
@@ -320,16 +319,20 @@ def onClick_exportBTN():
         
     #Returns:
         None
-"""
-def onClick_importBTN(table, txt, button):
+    """
     global geoData
+    geoDataTemp = {}
     # Define a filename (or use a file dialog to choose one)
     result = mc.fileDialog2(fileMode=4, caption='Load Selection', fileFilter='JSON Files (*.json)')
     
     if result:
         for filename in result:
             #Dumping information from the json to the list
-            geoData = readFile(filename)
+            data = readFile(filename)
+
+            # Convert list of dictionaries to a dictionary with 'name' as the key
+            geoDataTemp = {item['name']: item for item in data}
+        
 
         mainGeo = mc.textField(txt, q=True, tx=True)
         if mc.objExists(mainGeo):
@@ -339,10 +342,18 @@ def onClick_importBTN(table, txt, button):
                 for obj in geoData:
                     #Recovers original data
                     secGeo = obj["name"]
-                    index = obj["closestVertex"]
+                    try:
+                        index = geoDataTemp[secGeo]["closestVertex"]
 
-                    #For each obj in geoData apply popConstraint
-                    popConstraint(f"{mainGeo}.vtx[{index}]", secGeo)
+                        if index:
+                            #Fill the missing data on geoData
+                            obj["closestVertex"] = index
+
+                            #For each obj in geoData apply popConstraint
+                            popConstraint(f"{mainGeo}.vtx[{index}]", secGeo)
+                    except Exception:
+                        om.MGlobal.displayWarning(f"Unable to parent, the {secGeo} object doesn't exist on the imported file. Skipping.")
+
             except Exception:
                 om.MGlobal.displayError("The file imported doesn't containt the columns name and closestVertex. Please try again.")
             
@@ -353,8 +364,9 @@ def onClick_importBTN(table, txt, button):
         om.MGlobal.displayError("The file wasn't selected. Please try again")
 
 
-""" ------------------------------------------------------------------------------------------------------------
-    ------------------------------------------------------------------------------------------------------------
+
+def onUpdate_secgeoTB(row, column, value):
+    """
     #Function that will refresh the table
 
     #Parameters:
@@ -364,15 +376,15 @@ def onClick_importBTN(table, txt, button):
         
     #Returns:
         True
-"""
-def onUpdate_secgeoTB(row, column, value):
+    """
     return 1    
 
 #endregion
 
 
-""" ------------------------------------------------------------------------------------------------------------
-    ------------------------------------------------------------------------------------------------------------
+
+def createUI(height = 400, width = 450):
+    """ 
     #Function that will create the UI of the PointOnPoly Tool.
 
     #Parameters:
@@ -381,8 +393,7 @@ def onUpdate_secgeoTB(row, column, value):
 
     #Returns:
         None
-"""
-def createUI(height = 400, width = 450):
+    """
     #Verify if the window exists, if exists delete it
     if mc.window('popConstraintWND', exists= True):
         mc.deleteUI('popConstraintWND')
