@@ -14,13 +14,15 @@ except ImportError:
 
 
 ATTRS_LIST = [
-    {"name": "ovlSep", "label": "OVERLAP", "type": "enum", "default": 0.0},   
-    {"name": "ovlAmpX", "label": "Amplitude X", "type": "double", "default": 0.0},        # Degrees
-    {"name": "ovlAmpY", "label": "Amplitude Y", "type": "double", "default": 0.0},        # Degrees
-    {"name": "ovlAmpZ", "label": "Amplitude Z", "type": "double", "default": 10.0},       # Degrees
-    {"name": "ovlCyLen", "label": "Cycle Length", "type": "double", "default": 100.0},    # Frames
-    {"name": "ovlDelay", "label": "Delay", "type": "double", "default": 25.0},            # Degrees
-    {"name": "ovlFalloff", "label": "Falloff", "type": "double", "default": 60.0},        # Percentage
+    {"name": "ovlSep", "label": "OVERLAP", "type": "enum", "default": 0.0},                 # Separator
+    {"name": "ovlWave", "label": "Wave Type", "type": "enum", "default": 0.0},              # Menu
+    {"name": "ovlAmpX", "label": "Amplitude X", "type": "double", "default": 0.0},          # Degrees
+    {"name": "ovlAmpY", "label": "Amplitude Y", "type": "double", "default": 0.0},          # Degrees
+    {"name": "ovlAmpZ", "label": "Amplitude Z", "type": "double", "default": 10.0},         # Degrees
+    {"name": "ovlCyLen", "label": "Cycle Length", "type": "double", "default": 100.0},      # Frames
+    {"name": "ovlDelay", "label": "Delay", "type": "double", "default": 25.0},              # Degrees
+    {"name": "ovlFalloff", "label": "Falloff", "type": "double", "default": 60.0},          # Percentage
+    {"name": "ovlEnergy", "label": "Energy", "type": "double", "default": 100.0},           # Percentage
 ]
 
 
@@ -189,10 +191,14 @@ class overlappingAnim(QtWidgets.QDialog):
                     "keyable": True
                 }
 
-                if longName == "ovlCyLen":
-                    kwargs["minValue"] = 1
                 if longName == "ovlSep":
                     kwargs["enumName"] = "__________"
+                if longName == "ovlCyLen":
+                    kwargs["minValue"] = 1
+                if longName == "ovlEnergy":
+                    kwargs["minValue"] = 5
+                    kwargs["maxValue"] = 100
+                
 
                 mc.addAttr(obj, **kwargs)
 
