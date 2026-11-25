@@ -4,21 +4,23 @@ import maya.OpenMayaUI as omui
 import re
 import os
 
+try:
+    from PySide6 import QtCore, QtWidgets, QtGui
+    from shiboken6 import wrapInstance
+except ImportError:
+    from PySide2 import QtCore, QtWidgets, QtGui
+    from shiboken2 import wrapInstance
 
-from PySide6 import QtCore
-from PySide6 import QtWidgets
-from PySide6 import QtGui
-
-from shiboken6 import wrapInstance
 
 
 ATTRS_LIST = [
-    {"name": "ovlAmpX", "label": "Amplitude X", "default": 0.0},        # Degrees
-    {"name": "ovlAmpY", "label": "Amplitude Y", "default": 0.0},        # Degrees
-    {"name": "ovlAmpZ", "label": "Amplitude Z", "default": 10.0},       # Degrees
-    {"name": "ovlCyLen", "label": "Cycle Length", "default": 100.0},    # Frames
-    {"name": "ovlDelay", "label": "Delay", "default": 25.0},            # Degrees
-    {"name": "ovlFalloff", "label": "Falloff", "default": 60.0},        # Percentage
+    {"name": "ovlSep", "label": "OVERLAP", "type": "enum", "default": 0.0},   
+    {"name": "ovlAmpX", "label": "Amplitude X", "type": "double", "default": 0.0},        # Degrees
+    {"name": "ovlAmpY", "label": "Amplitude Y", "type": "double", "default": 0.0},        # Degrees
+    {"name": "ovlAmpZ", "label": "Amplitude Z", "type": "double", "default": 10.0},       # Degrees
+    {"name": "ovlCyLen", "label": "Cycle Length", "type": "double", "default": 100.0},    # Frames
+    {"name": "ovlDelay", "label": "Delay", "type": "double", "default": 25.0},            # Degrees
+    {"name": "ovlFalloff", "label": "Falloff", "type": "double", "default": 60.0},        # Percentage
 ]
 
 
@@ -42,7 +44,7 @@ class overlappingAnim(QtWidgets.QDialog):
         self.createWidgets()
         self.createLayouts()
         self.createConnections()
-
+        self.loadFrameRange()
 
     def createWidgets(self):
         self.selectedTXT = QtWidgets.QLineEdit()
@@ -51,6 +53,13 @@ class overlappingAnim(QtWidgets.QDialog):
         self.createBTN = QtWidgets.QPushButton("Create system")
         self.deleteBTN = QtWidgets.QPushButton("Delete system")
 
+
+        self.frameMinSB = QtWidgets.QSpinBox()
+        self.frameMinSB.setRange(-100, 100000)
+        self.frameMaxSB = QtWidgets.QSpinBox()
+        self.frameMaxSB.setRange(-100, 100000)
+        self.bakeKeysBTN = QtWidgets.QPushButton("Bake")
+
         self.setWidgetsEnabled(False)
         
 
@@ -58,7 +67,7 @@ class overlappingAnim(QtWidgets.QDialog):
         mainLayout = QtWidgets.QVBoxLayout(self)
 
         self.hierarchyLYT = QtWidgets.QHBoxLayout(self)
-        self.hierarchyLYT.addWidget(QtWidgets.QLabel('Hierarchy Control: '))
+        self.hierarchyLYT.addWidget(QtWidgets.QLabel('Controller: '))
         self.hierarchyLYT.addWidget(self.selectedTXT)
         self.hierarchyLYT.addWidget(self.loadBTN)
 
@@ -67,8 +76,18 @@ class overlappingAnim(QtWidgets.QDialog):
         self.actionsLYT.addWidget(self.createBTN,0,0,1,2)
         self.actionsLYT.addWidget(self.deleteBTN,0,2)
 
+
+        self.bakeLYT = QtWidgets.QHBoxLayout()
+        self.bakeLYT.addWidget(QtWidgets.QLabel('Start'))
+        self.bakeLYT.addWidget(self.frameMinSB)
+        self.bakeLYT.addWidget(QtWidgets.QLabel('End'))
+        self.bakeLYT.addWidget(self.frameMaxSB)
+        self.bakeLYT.addWidget(self.bakeKeysBTN)
+
         mainLayout.addLayout(self.hierarchyLYT)
         mainLayout.addLayout(self.actionsLYT)
+
+        mainLayout.addLayout(self.bakeLYT)
         
         mainLayout.addStretch()
         self.setLayout(mainLayout)
@@ -78,6 +97,15 @@ class overlappingAnim(QtWidgets.QDialog):
         self.loadBTN.clicked.connect(self.onClick_loadBTN)
         self.createBTN.clicked.connect(self.onClick_createBTN)
         self.deleteBTN.clicked.connect(self.onClick_deleteBTN)
+
+    def loadFrameRange(self):
+        """Load timeline frame range into input fields."""
+
+        start = int(mc.playbackOptions(q=True, min=True))
+        end = int(mc.playbackOptions(q=True, max=True))
+
+        self.frameMinSB.setValue(start)
+        self.frameMaxSB.setValue(end)
 
     def onClick_loadBTN(self):
 
@@ -148,10 +176,6 @@ class overlappingAnim(QtWidgets.QDialog):
         return filteredCurves
 
     def createAttributes(self, obj):
-        exists = mc.attributeQuery("ovlSep", node=obj, exists=True)
-        if not exists:
-            mc.addAttr(obj, longName="ovlSep", niceName="OVERLAP", attributeType="enum", enumName="__________")
-            mc.setAttr(obj + ".ovlSep", edit=True, channelBox=True, lock=True)
 
         for attr in ATTRS_LIST:
             longName = attr["name"]
@@ -160,31 +184,32 @@ class overlappingAnim(QtWidgets.QDialog):
                 kwargs = {
                     "longName": longName,
                     "niceName": attr["label"],
-                    "attributeType": "double",
+                    "attributeType": attr["type"],
                     "defaultValue": attr["default"],
                     "keyable": True
                 }
 
                 if longName == "ovlCyLen":
                     kwargs["minValue"] = 1
+                if longName == "ovlSep":
+                    kwargs["enumName"] = "__________"
 
                 mc.addAttr(obj, **kwargs)
+
+        mc.setAttr(obj + ".ovlSep", edit=True, channelBox=True, lock=True)
 
         # 2. Mark the curve somehow to know it has Overlapping controls
         self.setWidthCurve(obj, 4)
 
     def deleteAttributes(self, obj):
-        # 1. Check if the attrb exists on the obj
-        exists = mc.attributeQuery("ovlSep", node=obj, exists=True)
-        # 2. If exists delete it
-        if exists:
-            mc.setAttr(obj + ".ovlSep", lock=False) # Unlock the separator
-            mc.deleteAttr(obj, attribute="ovlSep")
-
         for attr in ATTRS_LIST:
             longName = attr["name"]
             exists = mc.attributeQuery(longName, node=obj, exists=True)
             if exists:
+
+                if longName == "ovlSep":
+                    mc.setAttr(obj + ".ovlSep", lock=False) # Unlock the separator
+                
                 mc.deleteAttr(obj, attribute=longName)
 
         self.setWidthCurve(obj, 1)
