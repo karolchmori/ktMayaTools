@@ -89,11 +89,10 @@ class overlappingAnim(QtWidgets.QDialog):
             obj = selectedObjects[0]
 
             # 2. Detect if its a curve, if not send error, only check the first one selected
-            if self.isCurve(obj):
+            if mc.listRelatives(obj, shapes=True, type="nurbsCurve"):
                 # 3. If its a curve save the full path and show short one for user
                 self.selectedCurve = obj
                 shortNameCurve = self.selectedCurve.split("|")[-1]
-                print(self.selectedCurve)
 
                 self.selectedTXT.setText(shortNameCurve)
                 self.setWidgetsEnabled(True)
@@ -109,43 +108,38 @@ class overlappingAnim(QtWidgets.QDialog):
     def onClick_createBTN(self):
         # 1. Create the attributes on the selected curve
         self.createAttributes(self.selectedCurve)
+        # 2. Add expressions to all of them
+        self.createExpressions(self.selectedCurve)
 
-        # 2. Mark the curve somehow to know it has Overlapping controls
-        self.setWidthCurve(self.selectedCurve, 4)
-
-        # 3. Get the curves from the hierarchy
-        self.descendants = self.getDescendants(self.selectedCurve)
-        print(self.descendants)
-        # 4. Add expressions to all of them
-        
-
-    def onClick_deleteBTN(self):
-        # 1. Get the curves from the hierarchy
-        self.descendants = self.getDescendants(self.selectedCurve)        
-                
-        # 2. Delete expressions to all of them
-
-
-        # 3. Delete the attributes on the selected curve
+    def onClick_deleteBTN(self):  
+        # 1. Delete expressions to all of them
+        self.deleteExpressions(self.selectedCurve)
+        # 2. Delete the attributes on the selected curve
         self.deleteAttributes(self.selectedCurve)
-        self.setWidthCurve(self.selectedCurve, 1)
         
-
+    
 
     def setWidgetsEnabled(self, value):
         self.createBTN.setEnabled(value)
         self.deleteBTN.setEnabled(value)
 
-    def isCurve(self, obj):
-        shapes = mc.listRelatives(obj, shapes=True, fullPath=True) or []
-        for shape in shapes:
-            if mc.nodeType(shape) == "nurbsCurve":
-                return shape
-            else:
-                return None
 
     def createExpressions(self, obj):
-        pass
+        descendants = self.getDescendants(obj)
+        
+        for curve in descendants:
+            nameCurve = curve.split("|")[-1]
+            expression = f"{curve}.translateY = sin(time);"
+
+            mc.expression(string=expression, name=nameCurve + "_expr", alwaysEvaluate=True, unitConversion="all")
+
+    def deleteExpressions(self, obj):
+        descendants = self.getDescendants(obj)
+
+        for curve in descendants:
+            nameCurve = curve.split("|")[-1]
+            mc.delete(f"{nameCurve}_expr")
+
 
     def getDescendants(self, obj):
         descendants = mc.listRelatives(obj, allDescendents=True, fullPath=True, type="transform" ) or []
@@ -176,6 +170,9 @@ class overlappingAnim(QtWidgets.QDialog):
 
                 mc.addAttr(obj, **kwargs)
 
+        # 2. Mark the curve somehow to know it has Overlapping controls
+        self.setWidthCurve(obj, 4)
+
     def deleteAttributes(self, obj):
         # 1. Check if the attrb exists on the obj
         exists = mc.attributeQuery("ovlSep", node=obj, exists=True)
@@ -190,6 +187,7 @@ class overlappingAnim(QtWidgets.QDialog):
             if exists:
                 mc.deleteAttr(obj, attribute=longName)
 
+        self.setWidthCurve(obj, 1)
 
     def setWidthCurve(self, obj, value):
         shapes = mc.listRelatives(obj, shapes=True, fullPath=True) or []
