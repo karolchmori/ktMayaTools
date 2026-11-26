@@ -23,7 +23,6 @@ ATTRS_LIST = [
     {"name": "ovlDelay", "label": "Delay", "type": "double", "default": 5.0},                       # Frames
     {"name": "ovlFalloff", "label": "Falloff", "type": "double", "default": 60.0},                  # Percentage
     {"name": "ovlFalloffStart", "label": "Falloff Start", "type": "double", "default": 70.0},       # Percentage
-    {"name": "ovlEnergy", "label": "Energy", "type": "double", "default": 100.0},                   # Percentage
 ]
 
 
@@ -133,7 +132,7 @@ class overlappingAnim(QtWidgets.QDialog):
         mainLayout.addLayout(self.hierarchyLYT)
         mainLayout.addLayout(self.actionsLYT)
 
-        mainLayout.addLayout(self.bakeLYT)
+        #mainLayout.addLayout(self.bakeLYT)
         
         mainLayout.addStretch()
         self.setLayout(mainLayout)
@@ -244,10 +243,10 @@ class overlappingAnim(QtWidgets.QDialog):
                 if longName == "ovlSep":
                     kwargs["enumName"] = "__________"
                 if longName == "ovlWave":
-                    kwargs["enumName"] = "Sine:Triangle:Soft square:Organic:Bounce"
+                    kwargs["enumName"] = "Sine"
                 if longName == "ovlCyLen":
                     kwargs["minValue"] = 1
-                if longName in ("ovlEnergy","ovlFalloffStart"):
+                if longName == "ovlFalloffStart":
                     kwargs["minValue"] = 1
                     kwargs["maxValue"] = 100
                 
