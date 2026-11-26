@@ -16,15 +16,44 @@ except ImportError:
 ATTRS_LIST = [
     {"name": "ovlSep", "label": "OVERLAP", "type": "enum", "default": 0.0},                 # Separator
     {"name": "ovlWave", "label": "Wave Type", "type": "enum", "default": 0.0},              # Menu
-    {"name": "ovlAmpX", "label": "Amplitude X", "type": "double", "default": 0.0},          # Degrees
-    {"name": "ovlAmpY", "label": "Amplitude Y", "type": "double", "default": 0.0},          # Degrees
+    {"name": "ovlAmpX", "label": "Amplitude X", "type": "double", "default": 10.0},          # Degrees
+    {"name": "ovlAmpY", "label": "Amplitude Y", "type": "double", "default": 10.0},          # Degrees
     {"name": "ovlAmpZ", "label": "Amplitude Z", "type": "double", "default": 10.0},         # Degrees
     {"name": "ovlCyLen", "label": "Cycle Length", "type": "double", "default": 100.0},      # Frames
     {"name": "ovlDelay", "label": "Delay", "type": "double", "default": 25.0},              # Degrees
-    {"name": "ovlFalloff", "label": "Falloff", "type": "double", "default": 60.0},          # Percentage
+    {"name": "ovlFalloff", "label": "Falloff", "type": "double", "default": 60.0},          # Percentage [0-100]
     {"name": "ovlEnergy", "label": "Energy", "type": "double", "default": 100.0},           # Percentage
 ]
 
+
+EXPR_TEMPLATE = """
+
+// 1. Gather information from the master
+float $type = @Master.ovlWave;
+float $ampX = @Master.ovlAmpX;
+float $ampY = @Master.ovlAmpY;
+float $ampZ = @Master.ovlAmpZ;
+float $cyLen = @Master.ovlCyLen;
+float $delay = @Master.ovlDelay;
+float $falloff = @Master.ovlFalloff * 0.01;
+
+// 2. Get this driven object's delay
+float $index = @Index;
+float $maxLen = @ChainLen;
+float $chainPos = $index / $maxLen;
+
+float $amplitudeMultiplier = 1.0 + ($falloff * $chainPos);
+
+
+if ($type == 0) {   // Sine
+    // 3. Calculate the sine wave
+    float $wave = sin(time - ($delay * $index));
+    // 4. Apply movement
+    @Driven.rotateX = $ampX * $wave * $amplitudeMultiplier;
+}
+
+
+"""
 
 def mayaMainWindow():
     mainWindowPTR = omui.MQtUtil.mainWindow()
@@ -154,13 +183,18 @@ class overlappingAnim(QtWidgets.QDialog):
         self.deleteBTN.setEnabled(value)
 
 
-    def createExpressions(self, obj):
-        descendants = self.getDescendants(obj)
-        
-        for curve in descendants:
-            nameCurve = curve.split("|")[-1]
-            expression = f"{curve}.translateY = sin(time);"
 
+
+    def createExpressions(self, master):
+        descendants = self.getDescendants(master)
+        nameMaster = master.split("|")[-1]
+        
+        for i, curve in enumerate(descendants):
+            nameCurve = curve.split("|")[-1]
+            expression = EXPR_TEMPLATE.replace("@Master", nameMaster).replace("@Driven", nameCurve)
+            expression = expression.replace("@Index", str(i)).replace("@ChainLen", str(len(descendants)))
+
+            #expression = f"{curve}.translateY = sin(time);"
             mc.expression(string=expression, name=nameCurve + "_expr", alwaysEvaluate=True, unitConversion="all")
 
     def deleteExpressions(self, obj):
@@ -193,6 +227,8 @@ class overlappingAnim(QtWidgets.QDialog):
 
                 if longName == "ovlSep":
                     kwargs["enumName"] = "__________"
+                if longName == "ovlWave":
+                    kwargs["enumName"] = "Sine:Triangle:Soft square:Organic:Bounce"
                 if longName == "ovlCyLen":
                     kwargs["minValue"] = 1
                 if longName == "ovlEnergy":
