@@ -14,15 +14,16 @@ except ImportError:
 
 
 ATTRS_LIST = [
-    {"name": "ovlSep", "label": "OVERLAP", "type": "enum", "default": 0.0},                 # Separator
-    {"name": "ovlWave", "label": "Wave Type", "type": "enum", "default": 0.0},              # Menu
-    {"name": "ovlAmpX", "label": "Amplitude X", "type": "double", "default": 10.0},          # Degrees
-    {"name": "ovlAmpY", "label": "Amplitude Y", "type": "double", "default": 10.0},          # Degrees
-    {"name": "ovlAmpZ", "label": "Amplitude Z", "type": "double", "default": 10.0},         # Degrees
-    {"name": "ovlCyLen", "label": "Cycle Length", "type": "double", "default": 100.0},      # Frames
-    {"name": "ovlDelay", "label": "Delay", "type": "double", "default": 25.0},              # Degrees
-    {"name": "ovlFalloff", "label": "Falloff", "type": "double", "default": 60.0},          # Percentage [0-100]
-    {"name": "ovlEnergy", "label": "Energy", "type": "double", "default": 100.0},           # Percentage
+    {"name": "ovlSep", "label": "OVERLAP", "type": "enum", "default": 0.0},                         # Separator
+    {"name": "ovlWave", "label": "Wave Type", "type": "enum", "default": 0.0},                      # Menu
+    {"name": "ovlAmpX", "label": "Amplitude X", "type": "double", "default": 0.0},                  # Magnitude
+    {"name": "ovlAmpY", "label": "Amplitude Y", "type": "double", "default": 0.0},                  # Magnitude
+    {"name": "ovlAmpZ", "label": "Amplitude Z", "type": "double", "default": 0.0},                  # Magnitude
+    {"name": "ovlCyLen", "label": "Cycle Length", "type": "double", "default": 50.0},               # Frames
+    {"name": "ovlDelay", "label": "Delay", "type": "double", "default": 5.0},                       # Frames
+    {"name": "ovlFalloff", "label": "Falloff", "type": "double", "default": 60.0},                  # Percentage
+    {"name": "ovlFalloffStart", "label": "Falloff Start", "type": "double", "default": 70.0},       # Percentage
+    {"name": "ovlEnergy", "label": "Energy", "type": "double", "default": 100.0},                   # Percentage
 ]
 
 
@@ -36,22 +37,36 @@ float $ampZ = @Master.ovlAmpZ;
 float $cyLen = @Master.ovlCyLen;
 float $delay = @Master.ovlDelay;
 float $falloff = @Master.ovlFalloff * 0.01;
+float $falloffStart = clamp(0.0,0.9, @Master.ovlFalloffStart * 0.01);
+
 
 // 2. Get this driven object's delay
 float $index = @Index;
 float $maxLen = @ChainLen;
-float $chainPos = $index / $maxLen;
-
-float $amplitudeMultiplier = 1.0 + ($falloff * $chainPos);
+float $chainPos = $index / max(1.0, $maxLen - 1.0);
 
 
+// 3. Wave and delays
+float $wave;
+float $currentFrame = frame;
+float $curveDelay = $delay * $index;
+float $delayedFrame = $currentFrame - $curveDelay;
+
+// 4. FallOff Calculation
+float $falloffPos = clamp(0.0,1.0,($chainPos - $falloffStart) / (1.0 - $falloffStart));
+float $ampMultiplier = 1.0 + ($falloff * $falloffPos);
+
+
+// 5. Calculate the sine wave
 if ($type == 0) {   // Sine
-    // 3. Calculate the sine wave
-    float $wave = sin(time - ($delay * $index));
-    // 4. Apply movement
-    @Driven.rotateX = $ampX * $wave * $amplitudeMultiplier;
+    // $wave = sin(time - ($delay * $index));
+    $wave = sin(6.2831853 * $delayedFrame / $cyLen);
 }
 
+// 6. Apply movement
+@Driven.rotateX = $ampX * $wave * $ampMultiplier;
+@Driven.rotateY = $ampY * $wave * $ampMultiplier;
+@Driven.rotateZ = $ampZ * $wave * $ampMultiplier;
 
 """
 
@@ -207,7 +222,8 @@ class overlappingAnim(QtWidgets.QDialog):
 
     def getDescendants(self, obj):
         descendants = mc.listRelatives(obj, allDescendents=True, fullPath=True, type="transform" ) or []
-        filteredCurves = [obj] + [ obj for obj in descendants if mc.listRelatives(obj, shapes=True, type="nurbsCurve") ]
+        filteredCurves = [obj] + [ obj for obj in reversed(descendants) if mc.listRelatives(obj, shapes=True, type="nurbsCurve") ]
+        print(filteredCurves)
 
         return filteredCurves
 
@@ -231,8 +247,8 @@ class overlappingAnim(QtWidgets.QDialog):
                     kwargs["enumName"] = "Sine:Triangle:Soft square:Organic:Bounce"
                 if longName == "ovlCyLen":
                     kwargs["minValue"] = 1
-                if longName == "ovlEnergy":
-                    kwargs["minValue"] = 5
+                if longName in ("ovlEnergy","ovlFalloffStart"):
+                    kwargs["minValue"] = 1
                     kwargs["maxValue"] = 100
                 
 
