@@ -33,9 +33,6 @@ ATTRS_LIST = [
      "min": 1.0, "max": 100.0},                                                                     # Percentage
 ]
 
-# Wave settings from older versions, removed from controllers that still have them
-OLD_ATTRS = ["ovlWave", "ovlAmpX", "ovlAmpY", "ovlAmpZ", "ovlCyLen"]
-
 
 EXPR_TEMPLATE = """
 // 1. Gather information from the master
@@ -163,7 +160,6 @@ class followAnim(QtWidgets.QDialog):
         self.createLayouts()
         self.createConnections()
         self.loadFrameRange()
-        self.updateButtons()
 
     def createWidgets(self):
         self.selectedTXT = QtWidgets.QLineEdit()
@@ -182,6 +178,8 @@ class followAnim(QtWidgets.QDialog):
         self.frameMaxSB = QtWidgets.QSpinBox()
         self.frameMaxSB.setRange(-100, 100000)
         self.bakeKeysBTN = QtWidgets.QPushButton("Bake")
+
+        self.setWidgetsEnabled(False)
 
     def createLayouts(self):
         mainLayout = QtWidgets.QVBoxLayout(self)
@@ -225,37 +223,40 @@ class followAnim(QtWidgets.QDialog):
         self.frameMinSB.setValue(start)
         self.frameMaxSB.setValue(end)
 
-    def updateButtons(self):
-        hasChain = self.selectedCurve is not None
-        self.createBTN.setEnabled(hasChain and self.rootObject is not None)
-        self.deleteBTN.setEnabled(hasChain)
-        self.bakeKeysBTN.setEnabled(hasChain)
+
+    def setWidgetsEnabled(self, value):
+        self.createBTN.setEnabled(value)
+        self.deleteBTN.setEnabled(value)
+        self.bakeKeysBTN.setEnabled(value)
+    
 
     def onClick_loadBTN(self):
-        selected = mc.ls(selection=True, long=True) or []
+        selectedObjects = mc.ls(selection=True, long=True) or []
         self.selectedCurve = None
         self.selectedTXT.setText("")
+        self.setWidgetsEnabled(False)
 
-        if selected and mc.listRelatives(selected[0], shapes=True, type="nurbsCurve"):
-            self.selectedCurve = selected[0]
-            self.selectedTXT.setText(selected[0].split("|")[-1])
+        if selectedObjects and mc.listRelatives(selectedObjects[0], shapes=True, type="nurbsCurve"):
+            self.selectedCurve = selectedObjects[0]
+            self.selectedTXT.setText(self.selectedCurve.split("|")[-1])
+            self.setWidgetsEnabled(True)
         else:
             om.MGlobal.displayError("Please select a curve.")
 
-        self.updateButtons()
 
     def onClick_loadRootBTN(self):
-        selected = mc.ls(selection=True, long=True, type="transform") or []
+        selectedObjects = mc.ls(selection=True, long=True, type="transform") or []
         self.rootObject = None
         self.rootTXT.setText("")
+        self.setWidgetsEnabled(False)
 
-        if selected:
-            self.rootObject = selected[0]
-            self.rootTXT.setText(selected[0].split("|")[-1])
+        if selectedObjects:
+            self.rootObject = selectedObjects[0]
+            self.rootTXT.setText(self.rootObject.split("|")[-1])
+            self.setWidgetsEnabled(True)
         else:
             om.MGlobal.displayError("Please select the root (curve, joint or transform).")
 
-        self.updateButtons()
 
     def onClick_createBTN(self):
         chain = self.getDescendants(self.selectedCurve)
@@ -296,8 +297,7 @@ class followAnim(QtWidgets.QDialog):
             om.MGlobal.displayError("End frame must be greater than start frame.")
             return
 
-        mc.bakeResults(chain, attribute=ROTATE_ATTRS, time=(start, end),
-                       simulation=True, preserveOutsideKeys=True)
+        mc.bakeResults(chain, attribute=ROTATE_ATTRS, time=(start, end), simulation=True, preserveOutsideKeys=True)
 
         for name in names:
             if mc.objExists(name):
@@ -348,8 +348,7 @@ class followAnim(QtWidgets.QDialog):
                           .replace("@O2", melVector(offsets[2]))
                           .replace("@Axis", melVector(chainAxis)))
 
-            mc.expression(string=expression, name=exprName(ctrl),
-                          alwaysEvaluate=True, unitConversion="all")
+            mc.expression(string=expression, name=exprName(ctrl), alwaysEvaluate=True, unitConversion="all")
 
     def deleteExpressions(self, master):
         for ctrl in self.getDescendants(master):
@@ -369,27 +368,25 @@ class followAnim(QtWidgets.QDialog):
     def createAttributes(self, obj):
         for attr in ATTRS_LIST:
             longName = attr["name"]
-            if mc.attributeQuery(longName, node=obj, exists=True):
-                continue
+            if not mc.attributeQuery(longName, node=obj, exists=True):
+            
+                kwargs = {
+                    "longName": longName,
+                    "niceName": attr["label"],
+                    "attributeType": attr["type"],
+                    "defaultValue": attr["default"],
+                    "keyable": True
+                }
 
-            kwargs = {
-                "longName": longName,
-                "niceName": attr["label"],
-                "attributeType": attr["type"],
-                "defaultValue": attr["default"],
-                "keyable": True
-            }
+                if longName == "ovlSep":
+                    kwargs["enumName"] = "__________"
+                if "min" in attr:
+                    kwargs["minValue"] = attr["min"]
+                if "max" in attr:
+                    kwargs["maxValue"] = attr["max"]
 
-            if longName == "ovlSep":
-                kwargs["enumName"] = "__________"
-            if "min" in attr:
-                kwargs["minValue"] = attr["min"]
-            if "max" in attr:
-                kwargs["maxValue"] = attr["max"]
+                mc.addAttr(obj, **kwargs)
 
-            mc.addAttr(obj, **kwargs)
-
-        self.deleteOldAttributes(obj)
         mc.setAttr(obj + ".ovlSep", edit=True, channelBox=True, lock=True)
 
         # Mark the curve to know it has Overlapping controls
@@ -404,13 +401,8 @@ class followAnim(QtWidgets.QDialog):
 
                 mc.deleteAttr(obj, attribute=longName)
 
-        self.deleteOldAttributes(obj)
-        self.setWidthCurve(obj, 1)
 
-    def deleteOldAttributes(self, obj):
-        for name in OLD_ATTRS:
-            if mc.attributeQuery(name, node=obj, exists=True):
-                mc.deleteAttr(obj, attribute=name)
+        self.setWidthCurve(obj, 1)
 
     def setWidthCurve(self, obj, value):
         shapes = mc.listRelatives(obj, shapes=True, fullPath=True) or []
