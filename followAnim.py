@@ -1,3 +1,27 @@
+"""
+User Information and Program Documentation
+
+File: followAnim.py
+Author: Karol Ch. Mori
+Date: 2026-11-27
+Version: 1.1.0
+
+Description:
+    This program is designed to create a simulation of a driven curve following the driver direction using expressions. 
+    All the parameters are added to the master controller. It allows also to manually modify any rotation by using offset rotations. 
+    Finally you can bake this animation or undo the baking to modify the parameters and be able to bake again.
+
+User Information:
+    - User Name: Karol Ch. Mori
+    - User Email: karolchmori@hotmail.com
+    - Purpose of Use: School projects (Non-Commercial)
+
+Notes:
+    Found a bug? Let me know before you start tweaking things! I'm always happy to improve this tool.
+
+For support or inquiries, contact: karolchmori@hotmail.com
+"""
+
 import maya.cmds as mc
 import maya.OpenMaya as om
 import maya.OpenMayaUI as omui
@@ -22,17 +46,21 @@ ATTRS_LIST = [
     {"name": "ovlDragR", "label": "Rotate Drag", "type": "double", "default": 3.0},                 # Roughly frames of lag
     {"name": "ovlSmooth", "label": "Smoothing", "type": "double", "default": 3.0, "min": 0.1},      # Frames
     {"name": "ovlMaxAngle", "label": "Max Angle", "type": "double", "default": 45.0, "min": 0.0},   # Degrees
-
-    {"name": "ovlOvershoot", "label": "Overshoot", "type": "double", "default": 0.5,
-     "min": 0.0, "max": 1.0},                                                                      # Counter swing
+    {"name": "ovlOvershoot", "label": "Overshoot", "type": "double", "default": 0.5, "min": 0.0, "max": 1.0},      # Counter swing
 
     # Delay and falloff along the chain
     {"name": "ovlDelay", "label": "Delay", "type": "double", "default": 2.0, "min": 0.0},           # Frames
     {"name": "ovlFalloff", "label": "Falloff", "type": "double", "default": 60.0},                  # Percentage
-    {"name": "ovlFalloffStart", "label": "Falloff Start", "type": "double", "default": 70.0,
-     "min": 1.0, "max": 100.0},                                                                     # Percentage
+    {"name": "ovlFalloffStart", "label": "Falloff Start", "type": "double", "default": 70.0, "min": 1.0, "max": 100.0},     # Percentage
 ]
 
+# Per-controller attributes (created on every curve of the chain, master included)
+OFFSET_ATTRS_LIST = [
+    {"name": "ovlOffSep", "label": "OFFSET", "type": "enum", "default": 0.0},   # Separator
+    {"name": "ovlOffsetRotX", "label": "Offset Rotation X", "type": "double", "default": 0.0},
+    {"name": "ovlOffsetRotY", "label": "Offset Rotation Y", "type": "double", "default": 0.0},
+    {"name": "ovlOffsetRotZ", "label": "Offset Rotation Z", "type": "double", "default": 0.0},
+]
 
 EXPR_TEMPLATE = """
 // 1. Gather information from the master
@@ -103,18 +131,22 @@ vector $drag = (cross($v, $chainAxis) * $dragT - $w * $dragR) * $follow;
 float $falloffPos = clamp(0.0, 1.0, ($chainPos - $falloffStart) / (1.0 - $falloffStart));
 float $ampMultiplier = 1.0 + ($falloff * $falloffPos);
 
-// 7. Apply movement
+// 7. Apply movement + per-controller offset
 float $dx = ($drag.x) * $ampMultiplier;
 float $dy = ($drag.y) * $ampMultiplier;
 float $dz = ($drag.z) * $ampMultiplier;
 
-@Driven.rotateX = clamp(-$maxAngle, $maxAngle, $dx);
-@Driven.rotateY = clamp(-$maxAngle, $maxAngle, $dy);
-@Driven.rotateZ = clamp(-$maxAngle, $maxAngle, $dz);
+float $offX = @Driven.ovlOffsetRotX;
+float $offY = @Driven.ovlOffsetRotY;
+float $offZ = @Driven.ovlOffsetRotZ;
+
+@Driven.rotateX = clamp(-$maxAngle, $maxAngle, $dx) + $offX;
+@Driven.rotateY = clamp(-$maxAngle, $maxAngle, $dy) + $offY;
+@Driven.rotateZ = clamp(-$maxAngle, $maxAngle, $dz) + $offZ;
 """
 
 
-# ---------------------------------------------------------------- math helpers
+#region Global Helpers
 def dot(a, b):
     return sum(i * j for i, j in zip(a, b))
 
@@ -138,6 +170,7 @@ def melVector(v):
 def exprName(obj):
     return mc.ls(obj)[0].replace("|", "_").replace(":", "_") + "_expr"
 
+#endregion
 
 def mayaMainWindow():
     mainWindowPTR = omui.MQtUtil.mainWindow()
@@ -150,8 +183,8 @@ class followAnim(QtWidgets.QDialog):
 
         super(followAnim, self).__init__(parent)
 
-        self.setWindowTitle("Overlapping Animation")
-        self.setMinimumSize(400, 100)
+        self.setWindowTitle("Follow Animation")
+        self.setFixedSize(400, 200)
 
         self.selectedCurve = None
         self.rootObject = None
@@ -159,7 +192,7 @@ class followAnim(QtWidgets.QDialog):
         self.createWidgets()
         self.createLayouts()
         self.createConnections()
-        self.loadFrameRange()
+        self.loadUI()
 
     def createWidgets(self):
         self.selectedTXT = QtWidgets.QLineEdit()
@@ -178,8 +211,7 @@ class followAnim(QtWidgets.QDialog):
         self.frameMaxSB = QtWidgets.QSpinBox()
         self.frameMaxSB.setRange(-100, 100000)
         self.bakeKeysBTN = QtWidgets.QPushButton("Bake")
-
-        self.setWidgetsEnabled(False)
+        self.undoBakeBTN = QtWidgets.QPushButton("Undo bake")
 
     def createLayouts(self):
         mainLayout = QtWidgets.QVBoxLayout(self)
@@ -196,15 +228,21 @@ class followAnim(QtWidgets.QDialog):
         actionsLYT.addWidget(self.createBTN, 0, 0, 1, 2)
         actionsLYT.addWidget(self.deleteBTN, 0, 2)
 
-        bakeLYT = QtWidgets.QHBoxLayout()
-        bakeLYT.addWidget(QtWidgets.QLabel('Start'))
-        bakeLYT.addWidget(self.frameMinSB)
-        bakeLYT.addWidget(QtWidgets.QLabel('End'))
-        bakeLYT.addWidget(self.frameMaxSB)
-        bakeLYT.addWidget(self.bakeKeysBTN)
+        line = QtWidgets.QFrame()
+        line.setFrameShape(QtWidgets.QFrame.Shape.HLine)
+        line.setFrameShadow(QtWidgets.QFrame.Shadow.Sunken)
+
+        bakeLYT = QtWidgets.QGridLayout()
+        bakeLYT.addWidget(QtWidgets.QLabel('Start'), 0, 0)
+        bakeLYT.addWidget(self.frameMinSB, 0, 1)
+        bakeLYT.addWidget(QtWidgets.QLabel('End'), 0, 2)
+        bakeLYT.addWidget(self.frameMaxSB, 0, 3)
+        bakeLYT.addWidget(self.bakeKeysBTN, 1, 0, 1, 3)
+        bakeLYT.addWidget(self.undoBakeBTN, 1, 3, 1, 1)
 
         mainLayout.addLayout(pickLYT)
         mainLayout.addLayout(actionsLYT)
+        mainLayout.addWidget(line)
         mainLayout.addLayout(bakeLYT)
         mainLayout.addStretch()
 
@@ -214,8 +252,9 @@ class followAnim(QtWidgets.QDialog):
         self.createBTN.clicked.connect(self.onClick_createBTN)
         self.deleteBTN.clicked.connect(self.onClick_deleteBTN)
         self.bakeKeysBTN.clicked.connect(self.onClick_bakeBTN)
+        self.undoBakeBTN.clicked.connect(self.onClick_undoBakeBTN)
 
-    def loadFrameRange(self):
+    def loadUI(self):
         """Load timeline frame range into input fields."""
         start = int(mc.playbackOptions(q=True, min=True))
         end = int(mc.playbackOptions(q=True, max=True))
@@ -223,40 +262,35 @@ class followAnim(QtWidgets.QDialog):
         self.frameMinSB.setValue(start)
         self.frameMaxSB.setValue(end)
 
+        self.updateButtons()
 
-    def setWidgetsEnabled(self, value):
-        self.createBTN.setEnabled(value)
-        self.deleteBTN.setEnabled(value)
-        self.bakeKeysBTN.setEnabled(value)
-    
+    #region Actions
 
     def onClick_loadBTN(self):
         selectedObjects = mc.ls(selection=True, long=True) or []
         self.selectedCurve = None
         self.selectedTXT.setText("")
-        self.setWidgetsEnabled(False)
 
         if selectedObjects and mc.listRelatives(selectedObjects[0], shapes=True, type="nurbsCurve"):
             self.selectedCurve = selectedObjects[0]
             self.selectedTXT.setText(self.selectedCurve.split("|")[-1])
-            self.setWidgetsEnabled(True)
         else:
             om.MGlobal.displayError("Please select a curve.")
 
+        self.updateButtons()
 
     def onClick_loadRootBTN(self):
         selectedObjects = mc.ls(selection=True, long=True, type="transform") or []
         self.rootObject = None
         self.rootTXT.setText("")
-        self.setWidgetsEnabled(False)
 
         if selectedObjects:
             self.rootObject = selectedObjects[0]
             self.rootTXT.setText(self.rootObject.split("|")[-1])
-            self.setWidgetsEnabled(True)
         else:
             om.MGlobal.displayError("Please select the root (curve, joint or transform).")
 
+        self.updateButtons()
 
     def onClick_createBTN(self):
         chain = self.getDescendants(self.selectedCurve)
@@ -265,13 +299,7 @@ class followAnim(QtWidgets.QDialog):
             om.MGlobal.displayError("The root cannot be part of the driven chain.")
             return
 
-        # Remove a previous system so the chain goes back to rest
-        self.deleteExpressions(self.selectedCurve)
-
-        busy = [f"{c}.{a}" for c in chain for a in ROTATE_ATTRS
-                if mc.getAttr(f"{c}.{a}", lock=True)
-                or mc.listConnections(f"{c}.{a}", source=True, destination=False)
-                or mc.listConnections(f"{c}.rotate", source=True, destination=False)]
+        busy = self.busyRotations(chain)
         if busy:
             om.MGlobal.displayError("These rotations are locked or connected: " + ", ".join(busy))
             return
@@ -303,6 +331,38 @@ class followAnim(QtWidgets.QDialog):
             if mc.objExists(name):
                 mc.delete(name)
 
+    def onClick_undoBakeBTN(self):
+        """Delete the baked keys and build the expressions again.
+        The Overlap and Offset attributes already exist, so their values are kept."""
+        chain = self.getDescendants(self.selectedCurve)
+
+        if self.rootObject in chain:
+            om.MGlobal.displayError("The root cannot be part of the driven chain.")
+            return
+
+        if any(mc.objExists(exprName(c)) for c in chain):
+            om.MGlobal.displayError("The expressions already exist, nothing to undo.")
+            return
+
+        if not mc.attributeQuery("ovlDelay", node=self.selectedCurve, exists=True):
+            om.MGlobal.displayError("No overlap system found on this controller, use Create system.")
+            return
+
+        # The baked keys must be deleted first, otherwise the expressions can't drive the rotations -- gives an error
+        self.clearBakedAnimation(chain)
+
+        busy = self.busyRotations(chain)
+        if busy:
+            om.MGlobal.displayError("These rotations are still locked or connected: " + ", ".join(busy))
+            return
+
+        # Only adds what is missing
+        self.createAttributes(self.selectedCurve)
+        self.createExpressions(self.selectedCurve, self.rootObject)
+    #endregion
+
+    #region Logic creation
+
     def createExpressions(self, master, root):
         chain = self.getDescendants(master)
         nameMaster = mc.ls(master)[0]
@@ -329,10 +389,7 @@ class followAnim(QtWidgets.QDialog):
             if i + 1 < len(chain):
                 direction = [b - a for a, b in zip(positions[i], positions[i + 1])]
 
-            if direction is None:
-                chainAxis = [1.0, 0.0, 0.0]
-            else:
-                chainAxis = normalize([dot(direction, axis) for axis in axes])
+            chainAxis = [1.0, 0.0, 0.0] if direction is None else normalize([dot(direction, axis) for axis in axes])
 
             setups.append((offsets, chainAxis))
 
@@ -359,55 +416,107 @@ class followAnim(QtWidgets.QDialog):
                     if mc.getAttr(f"{ctrl}.{attr}", settable=True):
                         mc.setAttr(f"{ctrl}.{attr}", 0)
 
-    def getDescendants(self, obj):
-        descendants = mc.listRelatives(obj, allDescendents=True, fullPath=True, type="transform") or []
-        curves = [c for c in reversed(descendants)
-                  if mc.listRelatives(c, shapes=True, type="nurbsCurve")]
-        return [obj] + curves
-
     def createAttributes(self, obj):
-        for attr in ATTRS_LIST:
-            longName = attr["name"]
-            if not mc.attributeQuery(longName, node=obj, exists=True):
-            
-                kwargs = {
-                    "longName": longName,
-                    "niceName": attr["label"],
-                    "attributeType": attr["type"],
-                    "defaultValue": attr["default"],
-                    "keyable": True
-                }
+        # Master controls
+        self.addAttributes(obj, ATTRS_LIST)
 
-                if longName == "ovlSep":
-                    kwargs["enumName"] = "__________"
-                if "min" in attr:
-                    kwargs["minValue"] = attr["min"]
-                if "max" in attr:
-                    kwargs["maxValue"] = attr["max"]
-
-                mc.addAttr(obj, **kwargs)
-
-        mc.setAttr(obj + ".ovlSep", edit=True, channelBox=True, lock=True)
+        # Offset controls on every curve of the chain (master included)
+        for ctrl in self.getDescendants(obj):
+            self.addAttributes(ctrl, OFFSET_ATTRS_LIST)
 
         # Mark the curve to know it has Overlapping controls
         self.setWidthCurve(obj, 4)
 
     def deleteAttributes(self, obj):
-        for attr in ATTRS_LIST:
+        for ctrl in self.getDescendants(obj):
+            self.removeAttributes(ctrl, OFFSET_ATTRS_LIST)
+
+        self.removeAttributes(obj, ATTRS_LIST)
+        self.setWidthCurve(obj, 1)
+
+    #endregion
+
+
+    #region Helpers
+
+    def addAttributes(self, obj, attrList):
+        for attr in attrList:
             longName = attr["name"]
             if mc.attributeQuery(longName, node=obj, exists=True):
-                if longName == "ovlSep":
-                    mc.setAttr(obj + ".ovlSep", lock=False)  # Unlock the separator
+                continue
 
+            kwargs = {
+                "longName": longName,
+                "niceName": attr["label"],
+                "attributeType": attr["type"],
+                "defaultValue": attr["default"],
+                "keyable": True
+            }
+
+            if attr["type"] == "enum":
+                kwargs["enumName"] = "__________"
+            if "min" in attr:
+                kwargs["minValue"] = attr["min"]
+            if "max" in attr:
+                kwargs["maxValue"] = attr["max"]
+
+            mc.addAttr(obj, **kwargs)
+
+            if attr["type"] == "enum":  # lock the separator
+                mc.setAttr(f"{obj}.{longName}", edit=True, channelBox=True, lock=True)
+
+    def removeAttributes(self, obj, attrList):
+        for attr in attrList:
+            longName = attr["name"]
+            if mc.attributeQuery(longName, node=obj, exists=True):
+                if attr["type"] == "enum":
+                    mc.setAttr(f"{obj}.{longName}", lock=False)
                 mc.deleteAttr(obj, attribute=longName)
 
+    def busyRotations(self, chain):
+        """Rotation channels that are locked or already driven by something."""
+        return [f"{c}.{a}" for c in chain for a in ROTATE_ATTRS
+                if mc.getAttr(f"{c}.{a}", lock=True)
+                or mc.listConnections(f"{c}.{a}", source=True, destination=False)
+                or mc.listConnections(f"{c}.rotate", source=True, destination=False)]
 
-        self.setWidthCurve(obj, 1)
+    def clearBakedAnimation(self, chain):
+        """Delete the animation curves (and pairBlends) driving the rotations."""
+        for ctrl in chain:
+            for attr in ROTATE_ATTRS:
+                plug = f"{ctrl}.{attr}"
+                sources = mc.listConnections(plug, source=True, destination=False) or []
+
+                for node in set(sources):
+                    if not mc.objExists(node):
+                        continue
+
+                    if mc.nodeType(node) == "pairBlend":
+                        curves = mc.listConnections(node, source=True, destination=False, type="animCurve") or []
+                        mc.delete(list(set(curves)) + [node])
+                    elif "animCurve" in mc.nodeType(node, inherited=True):
+                        mc.delete(node)
 
     def setWidthCurve(self, obj, value):
         shapes = mc.listRelatives(obj, shapes=True, fullPath=True) or []
         for shape in shapes:
             mc.setAttr(shape + ".lineWidth", value)
+
+    def getDescendants(self, obj):
+        descendants = mc.listRelatives(obj, allDescendents=True, fullPath=True, type="transform") or []
+        curves = [curve for curve in reversed(descendants) if mc.listRelatives(curve, shapes=True, type="nurbsCurve")]
+        return [obj] + curves
+
+    def updateButtons(self):
+        hasCtrl = bool(self.selectedCurve)
+        hasRoot = bool(self.rootObject)
+
+        self.createBTN.setEnabled(hasCtrl and hasRoot)     # controller + root
+        self.deleteBTN.setEnabled(hasCtrl)                 # controller
+        self.bakeKeysBTN.setEnabled(hasCtrl)               # controller
+        self.undoBakeBTN.setEnabled(hasCtrl and hasRoot)   # controller + root
+
+    #endregion
 
 
 if __name__ == "__main__":
